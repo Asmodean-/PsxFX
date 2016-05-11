@@ -28,14 +28,14 @@
                             [DEFINITIONS|GLOBALS]
 ------------------------------------------------------------------------------*/
 
-// #NOTE: For intended results;
+// NOTE: For intended results;
 // Only enable (set to 1) any of the following if you also have it enabled in the fragment/slf shader.
 // Only use one of them at a time.
 
 #define XBR_ENABLED             0       //[0 or 1] Change to 1 to enable the xBR-Lv2-3D vertex code path.
-#define TXFAA_ENABLED           0       //[0 or 1] Change to 1 to enable the TXFAA vertex code path.
-#define SPRITE_INTERPOLATION    0       //[0 or 1] Change to 1 to enable the 2DAA vertex code path.
-#define FILTER_LEVEL            0       //[0 or 1] For TXFAA & 2DAA. 0: default level of filtering, 1: is a higher strength. For a smoother look.
+#define DDT_ENABLED             1       //[0 or 1] Change to 1 to enable the DDT vertex code path.
+#define TFAA_ENABLED            0       //[0 or 1] Change to 1 to enable the TFAA vertex code path.
+#define FILTER_LEVEL            0       //[0 or 1] For TFAA & DDT. 0: default level of filtering, 1: is a higher strength. For a smoother look.
 
 //Uniforms
 uniform vec4 OGL2Param;
@@ -73,35 +73,32 @@ void main()
 
     TexCoord = gl_TexCoord[0].xy; Position = gl_Position;
 
-    #if SPRITE_INTERPOLATION == 1
-    //  2DAA VS code path
-        #if (FILTER_LEVEL == 1)
-        float x = (0.75/2048.0);
-        float y = (0.75/1024.0);
-        #else
-        float x = (0.75/2560.0);
-        float y = (0.75/1440.0);
-        #endif
+    #if XBR_ENABLED == 1
+    //  xBR VS code path
+        vec2 OGLInvSize = vec2(1.0 / 1024.0, 1.0 / 512.0);
+        
+        float dx = OGLInvSize.x;
+        float dy = OGLInvSize.y;
 
-        vec2 dg1 = vec2(x, y);  	vec2 dg2 = vec2(-x, y);
-        vec2 sd1 = dg1*(0.5/0.75);	vec2 sd2 = dg2*(0.5/0.75);
-        vec2 ddx = vec2(x, 0.0); 	vec2 ddy = vec2(0.0, y);
+        gl_TexCoord[1] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,-2.0*dy); // A1 B1 C1
+        gl_TexCoord[2] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,    -dy); //  A  B  C
+        gl_TexCoord[3] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,      0); //  D  E  F
+        gl_TexCoord[4] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,     dy); //  G  H  I
+        gl_TexCoord[5] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx, 2.0*dy); // G5 H5 I5
+        gl_TexCoord[6] = gl_TexCoord[0].xyyy + vec4(-2.0*dx,-dy, 0,  dy); // A0 D0 G0
+        gl_TexCoord[7] = gl_TexCoord[0].xyyy + vec4( 2.0*dx,-dy, 0,  dy); // C4 F4 I4
+        
+    #elif DDT_ENABLED == 1
+    //  DDT VS code path
+        float dx = OGL2InvSize.x;
+        float dy = OGL2InvSize.y;
 
-        gl_TexCoord[1].xy = gl_TexCoord[0].xy - sd1;
-        gl_TexCoord[2].xy = gl_TexCoord[0].xy - sd2;
-        gl_TexCoord[3].xy = gl_TexCoord[0].xy + sd1;
-        gl_TexCoord[4].xy = gl_TexCoord[0].xy + sd2;
-        gl_TexCoord[5].xy = gl_TexCoord[0].xy - dg1;
-        gl_TexCoord[6].xy = gl_TexCoord[0].xy + dg1;
-        gl_TexCoord[5].zw = gl_TexCoord[0].xy - dg2;
-        gl_TexCoord[6].zw = gl_TexCoord[0].xy + dg2;
-        gl_TexCoord[1].zw = gl_TexCoord[0].xy - ddy;
-        gl_TexCoord[2].zw = gl_TexCoord[0].xy + ddx;
-        gl_TexCoord[3].zw = gl_TexCoord[0].xy + ddy;
-        gl_TexCoord[4].zw = gl_TexCoord[0].xy - ddx;
+        gl_TexCoord[1].xy = vec2(dx, 0.0); // F
+        gl_TexCoord[1].zw = vec2(0.0, dy); // H
+        gl_TexCoord[2].xy = gl_TexCoord[0].xy * vec2(dx, dy);
 
-    #elif TXFAA_ENABLED == 1
-    //  TXFAA VS code path
+    #elif TFAA_ENABLED == 1
+    //  TFAA VS code path
         #if (FILTER_LEVEL == 1)
         float x = (OGL2Size.x/2048.0)*OGL2Param.x;
         float y = (OGL2Size.y/1024.0)*OGL2Param.y;
@@ -123,21 +120,6 @@ void main()
         gl_TexCoord[6].xy = gl_TexCoord[0].xy + dg1;
         gl_TexCoord[1].zw = gl_TexCoord[0].xy - dg2;
         gl_TexCoord[2].zw = gl_TexCoord[0].xy + dg2;
-        
-    #elif XBR_ENABLED == 1
-    //  xBR VS code path
-        vec2 OGLInvSize = vec2(1.0 / 1024.0, 1.0 / 512.0);
-        
-        float dx = OGLInvSize.x;
-        float dy = OGLInvSize.y;
-
-        gl_TexCoord[1] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,-2.0*dy); // A1 B1 C1
-        gl_TexCoord[2] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,    -dy); //  A  B  C
-        gl_TexCoord[3] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,      0); //  D  E  F
-        gl_TexCoord[4] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx,     dy); //  G  H  I
-        gl_TexCoord[5] = gl_TexCoord[0].xxxy + vec4( -dx, 0, dx, 2.0*dy); // G5 H5 I5
-        gl_TexCoord[6] = gl_TexCoord[0].xyyy + vec4(-2.0*dx,-dy, 0,  dy); // A0 D0 G0
-        gl_TexCoord[7] = gl_TexCoord[0].xyyy + vec4( 2.0*dx,-dy, 0,  dy); // C4 F4 I4
 
     #else
     //  FXAA VS code path
