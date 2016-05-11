@@ -34,7 +34,7 @@
 #define NFAA                        0      //# Normal Filter Anti Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
-#define SFAA                        1      //# Guest's Soft Filter Anti Aliasing. This must be enabled in the vertex shader (slv) also, for it to work. (2D & 3D).
+#define SFAA                        0      //# Guest's Soft Filter Anti Aliasing. This must be enabled in the vertex shader (slv) also, for it to work. (2D & 3D).
 
 //#[FS SCALING TECHNIQUES]     [1=ON|0=OFF]  #NOTE: For best results: Only enable one type of filtering at one time. Use post antialiasing OR FS filtering, not both.
 #define BILINEAR_FILTERING          0      //# Bilinear Fullscreen Texture Filtering. BiLinear filtering - light to medium filtering of textures.[2D]
