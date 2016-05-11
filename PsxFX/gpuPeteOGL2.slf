@@ -30,7 +30,7 @@
 //--------------------------#[CHOOSE EFFECTS]#--------------------------------\\
 
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
-#define FXAA                        1      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
+#define FXAA                        0      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
 #define NFAA                        0      //# Normal Filter Anti Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
@@ -40,6 +40,7 @@
 #define BICUBIC_FILTERING           0      //# Bicubic Fullscreen Texture Filtering. BiCubic filtering - medium to strong filtering of textures.[2D]
 #define GAUSSIAN_FILTERING          0      //# Gaussian Fullscreen Texture Filtering. Gaussian filtering - strong to extra strong filtering of textures.[2D]
 #define BILATERAL_FILTERING         0      //# Bilateral Fullscreen Texture Filtering. Smoothes color gradient transitions and reduces dithering artifacts.[2D]
+#define DDTI_FILTERING              0      //# Data Dependent Triangulation Interpolation. This must be enabled in the vertex shader (slv) also, for it to work.[2D]
 #define BICUBLIC_SCALER             0      //# Bicubic Interpolation Scaling. Uses BCS on up scaling, and downsampling of games, for smoother scaling.
 #define LANCZOS_SCALER              0      //# Lanczos Interpolation Scaling. Uses Lanczos on up scaling, and downsampling of games for smoother scaling.
 
@@ -100,6 +101,9 @@
 //##[BILATERAL_FILTERING]
 #define BilateralRadius 3.00               //[1.00 to 8.00] Radius of the filter. Increasing the radius leads to more pixel lookups, so higher values require more performance.
 #define BilateralWeight 0.15               //[0.10 to 1.00] Central weight of the filter. Raising this increases the overall filter width, along with the strength.
+
+//##[DDTI_FILTERING]
+#define PixelShift 0.25                    //[0.10 to 1.00] Pixel offset amount. If you want to use an st offset, 0.25 is generally recommended. 0.0 is off.
 
 //##[BLENDED_BLOOM]
 #define BloomType BlendGlow                //[BlendGlow, BlendAddGlow, BlendAddLight, BlendScreen, BlendLuma, BlendOverlay] The type of blended bloom. Light<->Dark.
@@ -697,6 +701,69 @@ float4 BiCubicPass(float4 color, float2 texcoord)
 {
     float4 bicubic = BicubicFilter(OGL2Texture, texcoord);
     color = lerp(color, bicubic, BicubicStrength);
+    return color;
+}
+#endif
+
+/*------------------------------------------------------------------------------
+                        [DDT FILTERING CODE SECTION]
+------------------------------------------------------------------------------*/
+
+#if DDTI_FILTERING == 1
+float3 Bilinear(float p, float q, float3 A, float3 B, float3 C, float3 D)
+{
+	return ((1-p)*(1-q)*A + p*(1-q)*B + (1-p)*q*C + p*q*D);
+}
+
+float3 DDTFilter(sampler2D decal, float2 texcoord)
+{
+    float2 ofx = float2(PixelShift, PixelShift);
+    float2 pos = frac(gl_TexCoord[2].xy) - ofx;
+    float2 dir = sign(pos); // dir = pixel direction
+
+    float2 g1 = dir * gl_TexCoord[1].xy;
+    float2 g2 = dir * gl_TexCoord[1].zw;
+
+    float3 A = texture(decal, texcoord).xyz;
+    float3 B = texture(decal, texcoord +g1).xyz;
+    float3 C = texture(decal, texcoord +g2).xyz;
+    float3 D = texture(decal, texcoord +g1+g2).xyz;
+
+    float a = AvgLuminance(A);
+    float b = AvgLuminance(B);
+    float c = AvgLuminance(C);
+    float d = AvgLuminance(D);
+
+    float p = abs(pos.x), q = abs(pos.y);
+    float k = distance(pos,g1), l = distance(pos,g2);
+    float wd1 = abs(a-d), wd2 = abs(b-c);
+
+    if (wd1 < wd2)
+    {
+        if (k < l)
+        {
+            C = A + D - B;
+        }
+        else
+        {
+            B = A + D - C;
+        }
+    }
+    else if (wd1 > wd2)
+    {
+        D = B + C - A;
+    }
+
+    float3 color = Bilinear(p, q, A, B, C, D);
+
+    return color;
+}
+
+float4 DDTPass(float4 color, float2 texcoord)
+{
+    color.rgb = DDTFilter(OGL2Texture, texcoord);
+    color.a = AvgLuminance(color.rgb);
+    
     return color;
 }
 #endif
@@ -2746,6 +2813,10 @@ void main()
 
     #if BILATERAL_FILTERING == 1
     color = BilateralPass(color, texcoord);
+    #endif
+    
+    #if DDTI_FILTERING == 1
+    color = DDTPass(color, texcoord);
     #endif
 
     #if BICUBLIC_SCALER == 1
