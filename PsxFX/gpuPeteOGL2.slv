@@ -33,7 +33,7 @@
 // Only use one of them at a time.
 
 #define XBR_ENABLED             0       //[0 or 1] Change to 1 to enable the xBR-Lv2-3D vertex code path.
-#define SFAA_ENABLED            1       //[0 or 1] Change to 1 to enable the SFAA vertex code path.
+#define SFAA_ENABLED            0       //[0 or 1] Change to 1 to enable the SFAA vertex code path.
 #define DDT_ENABLED             0       //[0 or 1] Change to 1 to enable the DDT vertex code path.
 
 //Uniforms
