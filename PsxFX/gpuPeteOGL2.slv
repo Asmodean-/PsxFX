@@ -33,9 +33,8 @@
 // Only use one of them at a time.
 
 #define XBR_ENABLED             0       //[0 or 1] Change to 1 to enable the xBR-Lv2-3D vertex code path.
-#define DDT_ENABLED             1       //[0 or 1] Change to 1 to enable the DDT vertex code path.
-#define TFAA_ENABLED            0       //[0 or 1] Change to 1 to enable the TFAA vertex code path.
-#define FILTER_LEVEL            0       //[0 or 1] For TFAA & DDT. 0: default level of filtering, 1: is a higher strength. For a smoother look.
+#define SFAA_ENABLED            1       //[0 or 1] Change to 1 to enable the SFAA vertex code path.
+#define DDT_ENABLED             0       //[0 or 1] Change to 1 to enable the DDT vertex code path.
 
 //Uniforms
 uniform vec4 OGL2Param;
@@ -97,29 +96,27 @@ void main()
         gl_TexCoord[1].zw = vec2(0.0, dy); // H
         gl_TexCoord[2].xy = gl_TexCoord[0].xy * vec2(dx, dy);
 
-    #elif TFAA_ENABLED == 1
-    //  TFAA VS code path
-        #if (FILTER_LEVEL == 1)
-        float x = (OGL2Size.x/2048.0)*OGL2Param.x;
-        float y = (OGL2Size.y/1024.0)*OGL2Param.y;
-        #else
-        float x = (OGL2Size.x/2560.0)*OGL2Param.x;
-        float y = (OGL2Size.y/1440.0)*OGL2Param.y;
-        #endif
+    #elif SFAA_ENABLED == 1
+    //  SFAA VS code path
+        float x = OGL2InvSize.x;
+        float y = OGL2InvSize.y;
 
-        vec2 dg1 = vec2( x,y);
-        vec2 dg2 = vec2(-x,y);
-        vec2 dx  = vec2(x,0.0);
-        vec2 dy  = vec2(0.0,y);
+        vec2 dg1 = vec2(x, y), dg2 = vec2(-x, y);
+        vec2 sd1 = dg1 * 0.5, sd2 = dg2 * 0.5;
+        vec2 ddx = vec2(x, 0.0), ddy = vec2(0.0, y);
 
-        gl_TexCoord[1].xy = gl_TexCoord[0].xy - dy;
-        gl_TexCoord[2].xy = gl_TexCoord[0].xy + dy;
-        gl_TexCoord[3].xy = gl_TexCoord[0].xy - dx;
-        gl_TexCoord[4].xy = gl_TexCoord[0].xy + dx;
+        gl_TexCoord[1].xy = gl_TexCoord[0].xy - sd1;
+        gl_TexCoord[2].xy = gl_TexCoord[0].xy - sd2;
+        gl_TexCoord[3].xy = gl_TexCoord[0].xy + sd1;
+        gl_TexCoord[4].xy = gl_TexCoord[0].xy + sd2;
         gl_TexCoord[5].xy = gl_TexCoord[0].xy - dg1;
         gl_TexCoord[6].xy = gl_TexCoord[0].xy + dg1;
-        gl_TexCoord[1].zw = gl_TexCoord[0].xy - dg2;
-        gl_TexCoord[2].zw = gl_TexCoord[0].xy + dg2;
+        gl_TexCoord[5].zw = gl_TexCoord[0].xy - dg2;
+        gl_TexCoord[6].zw = gl_TexCoord[0].xy + dg2;
+        gl_TexCoord[1].zw = gl_TexCoord[0].xy - ddy;
+        gl_TexCoord[2].zw = gl_TexCoord[0].xy + ddx;
+        gl_TexCoord[3].zw = gl_TexCoord[0].xy + ddy;
+        gl_TexCoord[4].zw = gl_TexCoord[0].xy - ddx;
 
     #else
     //  FXAA VS code path
