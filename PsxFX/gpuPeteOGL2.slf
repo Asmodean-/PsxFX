@@ -75,7 +75,7 @@
 #define FxaaSubpixMax 1.50                 //[0.50 to 4.00] Amount of subpixel anti-aliasing. Higher values for a stronger effect, & edge coverage.
 #define FxaaQuality 3                      //[1|2|3|4] Overall Fxaa quality preset (pixel coverage). 1: Low, 2: Medium, 3: High, 4: Ultra.
 #define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. Can have a pretty high performance cost if BilateralRadius is high.
-#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the antialiasing of FXAA.
+#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with FXAA. (Enable xBR in slv)
 
 //##[NFAA]
 #define NormalStrength 1.50                //[0.50 to 4.00] Strength of the Normal Filter. Raising this will increase the strength of the filter.
