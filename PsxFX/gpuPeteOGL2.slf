@@ -938,7 +938,7 @@ float3 BilateralFilter(sampler2D bTex, float2 texcoord)
     float4x3 A, B;
     float norm = cwght;
 
-    float4 WX, WY, V4 = float4(1.0);
+    float4 WX, WY, V4 = float4(1.0, 1.0, 1.0, 1.0);
     float3 org = TEX(0.0, 0.0).rgb, result = cwght * org;
 
     float steps = ceil(BilateralRadius);
