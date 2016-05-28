@@ -28,7 +28,9 @@
                             [DEFINITIONS|GLOBALS]
 ------------------------------------------------------------------------------*/
 
-// NOTE: For intended results;
+// NOTE: I intend to remove these vs texcoord offsets from here soon, and use ps offsetting instead. 
+// Removing the need for swapping inside the vs.
+
 // Only enable (set to 1) any of the following if you also have it enabled in the fragment/slf shader.
 // Only use one of them at a time.
 
