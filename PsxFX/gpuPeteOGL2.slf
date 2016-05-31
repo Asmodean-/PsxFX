@@ -14,12 +14,15 @@
 ||                                                                               ||
 |#################################################################################|
 \*===============================================================================*/
-#version 150 compatibility
+#version 330 compatibility
 
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_gpu_shader5 : enable
 #extension GL_ARB_shader_precision : enable
+#extension GL_ARB_sample_shading : enable
 #extension GL_ARB_texture_rectangle : enable
+#extension GL_ARB_shader_storage_buffer_object : enable
+#extension GL_ARB_shader_image_load_store : enable
 #extension GL_ARB_bindless_texture : enable
 #extension GL_ARB_shading_language_420pack : enable
 
@@ -30,7 +33,7 @@
 //--------------------------#[CHOOSE EFFECTS]#--------------------------------\\
 
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
-#define FXAA                        0      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
+#define FXAA                        1      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
 #define NFAA                        0      //# Normal Filter Anti Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
@@ -75,7 +78,7 @@
 #define FxaaSubpixMax 1.50                 //[0.50 to 4.00] Amount of subpixel anti-aliasing. Higher values for a stronger effect, & edge coverage.
 #define FxaaQuality 3                      //[1|2|3|4] Overall Fxaa quality preset (pixel coverage). 1: Low, 2: Medium, 3: High, 4: Ultra.
 #define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. Can have a pretty high performance cost if BilateralRadius is high.
-#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with FXAA. (Enable xBR in slv)
+#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the antialiasing of FXAA.
 
 //##[NFAA]
 #define NormalStrength 1.50                //[0.50 to 4.00] Strength of the Normal Filter. Raising this will increase the strength of the filter.
@@ -1239,61 +1242,64 @@ float4 xBRPass(float4 color, float2 texcoord)
 #define FxaaEdgeThresholdMin 0.0833
 #endif
 
-const float FXAA_SPAN_MAX = FxaaSubpixMax;
-const float FXAA_REDUCE_MUL = FxaaEdgeThreshold;
-const float FXAA_REDUCE_MIN = FxaaEdgeThresholdMin;
+uniform float maxSpan = FxaaSubpixMax;
+uniform float mulReduce = FxaaEdgeThreshold;
+uniform float minReduce = FxaaEdgeThresholdMin;
 
-vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 rcpFrame)
+vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 texelStep)
 {
-    vec3 rgbNW = textureLod(tex, uvPos.zw, 0.0).xyz;
-    vec3 rgbNE = textureLodOffset(tex, uvPos.zw, 0.0, ivec2(1,0)).xyz;
-    vec3 rgbSW = textureLodOffset(tex, uvPos.zw, 0.0, ivec2(0,1)).xyz;
-    vec3 rgbSE = textureLodOffset(tex, uvPos.zw, 0.0, ivec2(1,1)).xyz;
-    vec3 rgbM  = textureLod(tex, uv.xy, 0.0).xyz;
+    vec3 rgbM = texture(tex, uv).rgb;
 
+    // Sampling neighbour texels. Offsets are adapted to OpenGL texture coordinates. 
+    vec3 rgbNW = textureOffset(tex, uvPos.zw, ivec2(0, 0)).rgb;
+    vec3 rgbNE = textureOffset(tex, uvPos.zw, ivec2(1, 0)).rgb;
+    vec3 rgbSW = textureOffset(tex, uvPos.zw, ivec2(0, 1)).rgb;
+    vec3 rgbSE = textureOffset(tex, uvPos.zw, ivec2(1, 1)).rgb;
+
+    // Convert from RGB to luma.
     float lumaNW = AvgLuminance(rgbNW);
     float lumaNE = AvgLuminance(rgbNE);
     float lumaSW = AvgLuminance(rgbSW);
     float lumaSE = AvgLuminance(rgbSE);
     float lumaM  = AvgLuminance(rgbM);
 
+    // Gather minimum and maximum luma.
     float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
     float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
 
-    vec2 dir;
-    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
-    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+    // Sampling is done along the gradient.
+    vec2 samplingDirection;	
+    samplingDirection.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    samplingDirection.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
 
-    float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);
-    float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);
-    
-    dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
-    dir * rcpDirMin)) * rcpFrame.xy;
+    // Sampling step distance depends on the luma: The brighter the sampled texels, the smaller the final sampling step direction.
+    // This results, that brighter areas are less blurred/more sharper than dark areas.  
+    float samplingDirectionReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * 0.25 * mulReduce, minReduce);
 
-    #if BilateralSampling == 1
-    vec3 rgbA = (1.0/2.0) * (
-        BilateralFilter(tex, uv.xy + dir * (1.0/3.0 - 0.5)).xyz +
-        BilateralFilter(tex, uv.xy + dir * (2.0/3.0 - 0.5)).xyz);
-        
-    #elif xBRlv2Sampling == 1
-    vec3 rgbA = (1.0/2.0) * (
-        xBRvFilter(tex, uv.xy + dir * (1.0/3.0 - 0.5)).xyz +
-        xBRvFilter(tex, uv.xy + dir * (2.0/3.0 - 0.5)).xyz);
-        
-    #else
-    vec3 rgbA = (1.0/2.0) * (
-        textureLod(tex, uv.xy + dir * (1.0/3.0 - 0.5), 0.0).xyz +
-        textureLod(tex, uv.xy + dir * (2.0/3.0 - 0.5), 0.0).xyz);
-    #endif
-    
-    vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
-        textureLod(tex, uv.xy + dir * (0.0/3.0 - 0.5), 0.0).xyz +
-        textureLod(tex, uv.xy + dir * (3.0/3.0 - 0.5), 0.0).xyz);
-    
-    float lumaB = AvgLuminance(rgbB);
+    // Factor for norming the sampling direction plus adding the brightness influence. 
+    float minSamplingDirectionFactor = 1.0 / (min(abs(samplingDirection.x), abs(samplingDirection.y)) + samplingDirectionReduce);
 
-    if((lumaB < lumaMin) || (lumaB > lumaMax)) return rgbA;
-    else return rgbB; 
+    // Calculate final sampling direction vector by reducing, clamping to a range and finally adapting to the texture size. 
+    samplingDirection = clamp(samplingDirection * minSamplingDirectionFactor, vec2(-maxSpan, -maxSpan), vec2(maxSpan, maxSpan)) * texelStep;
+
+    // Inner samples on the tab.
+    vec3 rgbSampleNeg = texture(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = texture(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+
+    vec3 rgbTwoTab = (rgbSamplePos + rgbSampleNeg) * 0.5;  
+
+    // Outer samples on the tab.
+    vec3 rgbSampleNegOuter = texture(tex, uv + samplingDirection * (0.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePosOuter = texture(tex, uv + samplingDirection * (3.0/3.0 - 0.5)).rgb;
+
+    vec3 rgbFourTab = (rgbSamplePosOuter + rgbSampleNegOuter) * 0.25 + rgbTwoTab * 0.5;   
+
+    // Calculate luma for checking against the minimum and maximum value.
+    float lumaFourTab = AvgLuminance(rgbFourTab);
+
+    // Are outer samples of the tab beyond the edge ... 
+    if (lumaFourTab < lumaMin || lumaFourTab > lumaMax) return rgbTwoTab; // two samples.
+    else return rgbFourTab; // four samples. 
 }
 
 vec4 FXAAPass(float4 Fxaa, vec2 texcoord)
