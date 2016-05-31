@@ -33,7 +33,7 @@
 //--------------------------#[CHOOSE EFFECTS]#--------------------------------\\
 
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
-#define FXAA                        1      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
+#define FXAA                        0      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
 #define NFAA                        0      //# Normal Filter Anti Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
@@ -1283,8 +1283,16 @@ vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 texelStep)
     samplingDirection = clamp(samplingDirection * minSamplingDirectionFactor, vec2(-maxSpan, -maxSpan), vec2(maxSpan, maxSpan)) * texelStep;
 
     // Inner samples on the tab.
+    #if BilateralSampling == 1
+    vec3 rgbSampleNeg = BilateralFilter(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = BilateralFilter(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    #elif xBRlv2Sampling == 1
+    vec3 rgbSampleNeg = xBRvFilter(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = xBRvFilter(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    #else
     vec3 rgbSampleNeg = texture(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
     vec3 rgbSamplePos = texture(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    #endif
 
     vec3 rgbTwoTab = (rgbSamplePos + rgbSampleNeg) * 0.5;  
 
