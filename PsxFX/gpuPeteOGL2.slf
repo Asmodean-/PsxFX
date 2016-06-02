@@ -341,21 +341,21 @@ float3 YxytoXYZ(float3 Yxy)
     return xyz;
 }
 
-//Average relative luminance
+//Average Relative Luminance (HSP Color Model)
 const float3 lumCoeff = float3(0.2126729, 0.7151522, 0.0721750);
 float AvgLuminance(float3 color)
 {
     return sqrt(dot(color * color, lumCoeff));
 }
 
-//Smoothtep alt
+//Smoothstep alt
 float smootherstep(float a, float b, float x)
 {
     x = saturate((x - a) / (b - a));
     return x*x*x*(x*(x * 6 - 15) + 10);
 }
 
-//check for OOB rgb clipping
+//Check for OOB rgb clipping
 float4 DebugClipping(float4 color)
 {
     if (color.x >= 0.99999 && color.y >= 0.99999 &&
@@ -365,16 +365,6 @@ float4 DebugClipping(float4 color)
     color.z <= 0.00001) color.xyz = float3(0.0f, 0.0f, 1.0f);
 
     return color;
-}
-
-float4 sampleTex(sampler2D texSample, float2 texcoord)
-{
-    return texture(texSample, texcoord);
-}
-
-float4 sampleTexLod(sampler2D texSample, float2 texcoord, float lod)
-{
-    return textureLod(texSample, texcoord, lod);
 }
 
 /*------------------------------------------------------------------------------
@@ -709,12 +699,12 @@ float4 SampleBiLinear(sampler2D texSample, float2 texcoord)
     float2 uvCoord = float2((float(nX) + OffsetAmount) / screenSize.x, (float(nY) + OffsetAmount) / screenSize.y);
 
     // Take nearest two data in current row.
-    float4 SampleA = sampleTex(texSample, uvCoord);
-    float4 SampleB = sampleTex(texSample, uvCoord + float2(texelSizeX, 0.0));
+    float4 SampleA = texture(texSample, uvCoord);
+    float4 SampleB = texture(texSample, uvCoord + float2(texelSizeX, 0.0));
 
     // Take nearest two data in bottom row.
-    float4 SampleC = sampleTex(texSample, uvCoord + float2(0.0, texelSizeY));
-    float4 SampleD = sampleTex(texSample, uvCoord + float2(texelSizeX, texelSizeY));
+    float4 SampleC = texture(texSample, uvCoord + float2(0.0, texelSizeY));
+    float4 SampleD = texture(texSample, uvCoord + float2(texelSizeX, texelSizeY));
 
     float LX = frac(texcoord.x * screenSize.x); //Get Interpolation factor for X direction.
 
@@ -761,7 +751,7 @@ float4 BicubicFilter(sampler2D texSample, float2 texcoord)
     for (int m = -1; m <= 2; m++) {
     for (int n = -1; n <= 2; n++) {
 
-    float4 Samples = sampleTex(texSample, uvCoord +
+    float4 Samples = texture(texSample, uvCoord +
     float2(texelSizeX * float(m), texelSizeY * float(n)));
 
     float vc1 = Interpolation(float(m) - a);
@@ -865,36 +855,36 @@ float4 GaussianPass(float4 color, float2 texcoord)
     float2 dx2 = 2.0 * dx;
     float2 dy2 = 2.0 * dy;
 
-    float4 gaussian = sampleTex(OGL2Texture, texcoord);
+    float4 gaussian = texture(OGL2Texture, texcoord);
 
-    gaussian += sampleTex(OGL2Texture, texcoord - dx2 + dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord - dx + dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord + dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx + dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx2 + dy2);
+    gaussian += texture(OGL2Texture, texcoord - dx2 + dy2);
+    gaussian += texture(OGL2Texture, texcoord - dx + dy2);
+    gaussian += texture(OGL2Texture, texcoord + dy2);
+    gaussian += texture(OGL2Texture, texcoord + dx + dy2);
+    gaussian += texture(OGL2Texture, texcoord + dx2 + dy2);
 
-    gaussian += sampleTex(OGL2Texture, texcoord - dx2 + dy);
-    gaussian += sampleTex(OGL2Texture, texcoord - dx + dy);
-    gaussian += sampleTex(OGL2Texture, texcoord + dy);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx + dy);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx2 + dy);
+    gaussian += texture(OGL2Texture, texcoord - dx2 + dy);
+    gaussian += texture(OGL2Texture, texcoord - dx + dy);
+    gaussian += texture(OGL2Texture, texcoord + dy);
+    gaussian += texture(OGL2Texture, texcoord + dx + dy);
+    gaussian += texture(OGL2Texture, texcoord + dx2 + dy);
 
-    gaussian += sampleTex(OGL2Texture, texcoord - dx2);
-    gaussian += sampleTex(OGL2Texture, texcoord - dx);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx2);
+    gaussian += texture(OGL2Texture, texcoord - dx2);
+    gaussian += texture(OGL2Texture, texcoord - dx);
+    gaussian += texture(OGL2Texture, texcoord + dx);
+    gaussian += texture(OGL2Texture, texcoord + dx2);
 
-    gaussian += sampleTex(OGL2Texture, texcoord - dx2 - dy);
-    gaussian += sampleTex(OGL2Texture, texcoord - dx - dy);
-    gaussian += sampleTex(OGL2Texture, texcoord - dy);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx - dy);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx2 - dy);
+    gaussian += texture(OGL2Texture, texcoord - dx2 - dy);
+    gaussian += texture(OGL2Texture, texcoord - dx - dy);
+    gaussian += texture(OGL2Texture, texcoord - dy);
+    gaussian += texture(OGL2Texture, texcoord + dx - dy);
+    gaussian += texture(OGL2Texture, texcoord + dx2 - dy);
 
-    gaussian += sampleTex(OGL2Texture, texcoord - dx2 - dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord - dx - dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord - dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx - dy2);
-    gaussian += sampleTex(OGL2Texture, texcoord + dx2 - dy2);
+    gaussian += texture(OGL2Texture, texcoord - dx2 - dy2);
+    gaussian += texture(OGL2Texture, texcoord - dx - dy2);
+    gaussian += texture(OGL2Texture, texcoord - dy2);
+    gaussian += texture(OGL2Texture, texcoord + dx - dy2);
+    gaussian += texture(OGL2Texture, texcoord + dx2 - dy2);
 
     gaussian /= 25.0;
 
@@ -1246,15 +1236,15 @@ uniform float maxSpan = FxaaSubpixMax;
 uniform float mulReduce = FxaaEdgeThreshold;
 uniform float minReduce = FxaaEdgeThresholdMin;
 
-vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 texelStep)
+vec3 FxaaPixelShader(vec2 texcoord, vec4 pos, vec2 texelStep)
 {
-    vec3 rgbM = texture(tex, uv).rgb;
+    vec3 rgbM = texture(OGL2Texture, texcoord).rgb;
 
     // Sampling neighbour texels. Offsets are adapted to OpenGL texture coordinates. 
-    vec3 rgbNW = textureOffset(tex, uvPos.zw, ivec2(0, 0)).rgb;
-    vec3 rgbNE = textureOffset(tex, uvPos.zw, ivec2(1, 0)).rgb;
-    vec3 rgbSW = textureOffset(tex, uvPos.zw, ivec2(0, 1)).rgb;
-    vec3 rgbSE = textureOffset(tex, uvPos.zw, ivec2(1, 1)).rgb;
+    vec3 rgbNW = textureOffset(OGL2Texture, pos.zw, ivec2(0, 0)).rgb;
+    vec3 rgbNE = textureOffset(OGL2Texture, pos.zw, ivec2(1, 0)).rgb;
+    vec3 rgbSW = textureOffset(OGL2Texture, pos.zw, ivec2(0, 1)).rgb;
+    vec3 rgbSE = textureOffset(OGL2Texture, pos.zw, ivec2(1, 1)).rgb;
 
     // Convert from RGB to luma.
     float lumaNW = AvgLuminance(rgbNW);
@@ -1268,37 +1258,38 @@ vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 texelStep)
     float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
 
     // Sampling is done along the gradient.
-    vec2 samplingDirection;	
-    samplingDirection.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
-    samplingDirection.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+    vec2 direction;	
+    direction.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    direction.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
 
-    // Sampling step distance depends on the luma: The brighter the sampled texels, the smaller the final sampling step direction.
-    // This results, that brighter areas are less blurred/more sharper than dark areas.  
+    // Sampling step distance depends on the luma: brighter areas are sharper than dark areas.
     float samplingDirectionReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * 0.25 * mulReduce, minReduce);
 
     // Factor for norming the sampling direction plus adding the brightness influence. 
-    float minSamplingDirectionFactor = 1.0 / (min(abs(samplingDirection.x), abs(samplingDirection.y)) + samplingDirectionReduce);
+    float minSamplingDirectionFactor = 1.0 / (min(abs(direction.x), abs(direction.y)) + samplingDirectionReduce);
 
     // Calculate final sampling direction vector by reducing, clamping to a range and finally adapting to the texture size. 
-    samplingDirection = clamp(samplingDirection * minSamplingDirectionFactor, vec2(-maxSpan, -maxSpan), vec2(maxSpan, maxSpan)) * texelStep;
+    direction = clamp(direction * minSamplingDirectionFactor, vec2(-maxSpan, -maxSpan), vec2(maxSpan, maxSpan)) * texelStep;
 
-    // Inner samples on the tab.
+    // Inner samples.
     #if BilateralSampling == 1
-    vec3 rgbSampleNeg = BilateralFilter(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
-    vec3 rgbSamplePos = BilateralFilter(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    vec3 rgbSampleNeg = BilateralFilter(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = BilateralFilter(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
+    
     #elif xBRlv2Sampling == 1
-    vec3 rgbSampleNeg = xBRvFilter(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
-    vec3 rgbSamplePos = xBRvFilter(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    vec3 rgbSampleNeg = xBRvFilter(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = xBRvFilter(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
+
     #else
-    vec3 rgbSampleNeg = texture(tex, uv + samplingDirection * (1.0/3.0 - 0.5)).rgb;
-    vec3 rgbSamplePos = texture(tex, uv + samplingDirection * (2.0/3.0 - 0.5)).rgb;
+    vec3 rgbSampleNeg = texture(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePos = texture(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
     #endif
 
     vec3 rgbTwoTab = (rgbSamplePos + rgbSampleNeg) * 0.5;  
 
-    // Outer samples on the tab.
-    vec3 rgbSampleNegOuter = texture(tex, uv + samplingDirection * (0.0/3.0 - 0.5)).rgb;
-    vec3 rgbSamplePosOuter = texture(tex, uv + samplingDirection * (3.0/3.0 - 0.5)).rgb;
+    // Outer samples.
+    vec3 rgbSampleNegOuter = texture(OGL2Texture, texcoord + direction * (0.0/3.0 - 0.5)).rgb;
+    vec3 rgbSamplePosOuter = texture(OGL2Texture, texcoord + direction * (3.0/3.0 - 0.5)).rgb;
 
     vec3 rgbFourTab = (rgbSamplePosOuter + rgbSampleNegOuter) * 0.25 + rgbTwoTab * 0.5;   
 
@@ -1312,7 +1303,7 @@ vec3 FxaaPixelShader(vec2 uv, vec4 uvPos, sampler2D tex, vec2 texelStep)
 
 vec4 FXAAPass(float4 Fxaa, vec2 texcoord)
 {
-    Fxaa.rgb = FxaaPixelShader(texcoord, rcpPos, OGL2Texture, pixelSize);
+    Fxaa.rgb = FxaaPixelShader(texcoord, rcpPos, pixelSize);
     Fxaa.a = AvgLuminance(Fxaa.rgb);
     
     return Fxaa;
@@ -1358,10 +1349,10 @@ float4 BicubicScaler(sampler2D tex, float2 uv, float2 texSize)
     coord01 = (coord01 + 0.5) * inputSize;
     coord11 = (coord11 + 0.5) * inputSize;
 
-    float4 tex00 = sampleTexLod(tex, coord00, 0);
-    float4 tex10 = sampleTexLod(tex, coord10, 0);
-    float4 tex01 = sampleTexLod(tex, coord01, 0);
-    float4 tex11 = sampleTexLod(tex, coord11, 0);
+    float4 tex00 = texture(tex, coord00);
+    float4 tex10 = texture(tex, coord10);
+    float4 tex01 = texture(tex, coord01);
+    float4 tex11 = texture(tex, coord11);
 
     tex00 = lerp(tex01, tex00, float4(g0.y, g0.y, g0.y, g0.y));
     tex10 = lerp(tex11, tex10, float4(g0.y, g0.y, g0.y, g0.y));
@@ -1385,7 +1376,7 @@ float4 BiCubicScalerPass(float4 color, float2 texcoord)
 #if LANCZOS_SCALER == 1
 float3 PixelPos(float xpos, float ypos)
 {
-    return sampleTex(OGL2Texture, float2(xpos, ypos)).rgb;
+    return texture(OGL2Texture, float2(xpos, ypos)).rgb;
 }
 
 float4 WeightQuad(float x)
@@ -1503,7 +1494,7 @@ float4 SampleBicubic(sampler2D texSample, float2 texcoord)
     for (int m = -1; m <= 2; m++) {
     for (int n = -1; n <= 2; n++) {
 
-    float4 Samples = sampleTex(texSample, uvCoord +
+    float4 Samples = texture(texSample, uvCoord +
     float2(texelSizeX * float(m), texelSizeY * float(n)));
 
     float vc1 = Cubic(float(m) - a);
@@ -1627,10 +1618,10 @@ float4 DefocusFilter(sampler2D tex, float2 texcoord, float2 defocus)
 {
     float2 texel = pixelSize * defocus;
 
-    float4 sampleA = sampleTex(tex, texcoord + float2(0.5, 0.5) * texel);
-    float4 sampleB = sampleTex(tex, texcoord + float2(-0.5, 0.5) * texel);
-    float4 sampleC = sampleTex(tex, texcoord + float2(0.5, -0.5) * texel);
-    float4 sampleD = sampleTex(tex, texcoord + float2(-0.5, -0.5) * texel);
+    float4 sampleA = texture(tex, texcoord + float2(0.5, 0.5) * texel);
+    float4 sampleB = texture(tex, texcoord + float2(-0.5, 0.5) * texel);
+    float4 sampleC = texture(tex, texcoord + float2(0.5, -0.5) * texel);
+    float4 sampleD = texture(tex, texcoord + float2(-0.5, -0.5) * texel);
 
     float fx = frac(texcoord.x * screenSize.x);
     float fy = frac(texcoord.y * screenSize.y);
@@ -1656,34 +1647,34 @@ float4 BloomPass(float4 color, float2 texcoord)
 
     float4 blend = bloom * 0.22520613262190495;
 
-    blend += 0.002589001911021066 * sampleTex(OGL2Texture, texcoord - mdx + mdy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord - dx + mdy);
-    blend += 0.024146616900339800 * sampleTex(OGL2Texture, texcoord + mdy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord + dx + mdy);
-    blend += 0.002589001911021066 * sampleTex(OGL2Texture, texcoord + mdx + mdy);
+    blend += 0.002589001911021066 * texture(OGL2Texture, texcoord - mdx + mdy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord - dx + mdy);
+    blend += 0.024146616900339800 * texture(OGL2Texture, texcoord + mdy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord + dx + mdy);
+    blend += 0.002589001911021066 * texture(OGL2Texture, texcoord + mdx + mdy);
 
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord - mdx + dy);
-    blend += 0.044875475183061630 * sampleTex(OGL2Texture, texcoord - dx + dy);
-    blend += 0.100529757860782610 * sampleTex(OGL2Texture, texcoord + dy);
-    blend += 0.044875475183061630 * sampleTex(OGL2Texture, texcoord + dx + dy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord + mdx + dy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord - mdx + dy);
+    blend += 0.044875475183061630 * texture(OGL2Texture, texcoord - dx + dy);
+    blend += 0.100529757860782610 * texture(OGL2Texture, texcoord + dy);
+    blend += 0.044875475183061630 * texture(OGL2Texture, texcoord + dx + dy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord + mdx + dy);
 
-    blend += 0.024146616900339800 * sampleTex(OGL2Texture, texcoord - mdx);
-    blend += 0.100529757860782610 * sampleTex(OGL2Texture, texcoord - dx);
-    blend += 0.100529757860782610 * sampleTex(OGL2Texture, texcoord + dx);
-    blend += 0.024146616900339800 * sampleTex(OGL2Texture, texcoord + mdx);
+    blend += 0.024146616900339800 * texture(OGL2Texture, texcoord - mdx);
+    blend += 0.100529757860782610 * texture(OGL2Texture, texcoord - dx);
+    blend += 0.100529757860782610 * texture(OGL2Texture, texcoord + dx);
+    blend += 0.024146616900339800 * texture(OGL2Texture, texcoord + mdx);
 
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord - mdx - dy);
-    blend += 0.044875475183061630 * sampleTex(OGL2Texture, texcoord - dx - dy);
-    blend += 0.100529757860782610 * sampleTex(OGL2Texture, texcoord - dy);
-    blend += 0.044875475183061630 * sampleTex(OGL2Texture, texcoord + dx - dy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord + mdx - dy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord - mdx - dy);
+    blend += 0.044875475183061630 * texture(OGL2Texture, texcoord - dx - dy);
+    blend += 0.100529757860782610 * texture(OGL2Texture, texcoord - dy);
+    blend += 0.044875475183061630 * texture(OGL2Texture, texcoord + dx - dy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord + mdx - dy);
 
-    blend += 0.002589001911021066 * sampleTex(OGL2Texture, texcoord - mdx - mdy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord - dx - mdy);
-    blend += 0.024146616900339800 * sampleTex(OGL2Texture, texcoord - mdy);
-    blend += 0.010778807494659370 * sampleTex(OGL2Texture, texcoord + dx - mdy);
-    blend += 0.002589001911021066 * sampleTex(OGL2Texture, texcoord + mdx - mdy);
+    blend += 0.002589001911021066 * texture(OGL2Texture, texcoord - mdx - mdy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord - dx - mdy);
+    blend += 0.024146616900339800 * texture(OGL2Texture, texcoord - mdy);
+    blend += 0.010778807494659370 * texture(OGL2Texture, texcoord + dx - mdy);
+    blend += 0.002589001911021066 * texture(OGL2Texture, texcoord + mdx - mdy);
     blend = lerp(color, blend, float(BlendStrength));
 
     bloom.xyz = BloomType(bloom.xyz, blend.xyz);
@@ -2125,7 +2116,7 @@ float4 CelPass(float4 color, float2 texcoord)
 
     for (int i = 0; i < NUM; i++)
     {
-        col[i] = sampleTex(OGL2Texture, texcoord + set[i] * width).rgb;
+        col[i] = texture(OGL2Texture, texcoord + set[i] * width).rgb;
         col[i] = CelColor(col[i]);
 
         #if ColorRounding == 1
@@ -2160,14 +2151,14 @@ float4 CelPass(float4 color, float2 texcoord)
 
     float4 pos3 = pos1 + 2.0 * offset;
 
-    float3 c0 = sampleTex(OGL2Texture, pos3.xy).rgb;
-    float3 c1 = sampleTex(OGL2Texture, pos2.xy).rgb;
-    float3 c2 = sampleTex(OGL2Texture, pos3.zy).rgb;
-    float3 c3 = sampleTex(OGL2Texture, pos1.xy).rgb;
-    float3 c5 = sampleTex(OGL2Texture, pos1.zw).rgb;
-    float3 c6 = sampleTex(OGL2Texture, pos3.xw).rgb;
-    float3 c7 = sampleTex(OGL2Texture, pos2.zw).rgb;
-    float3 c8 = sampleTex(OGL2Texture, pos3.zw).rgb;
+    float3 c0 = texture(OGL2Texture, pos3.xy).rgb;
+    float3 c1 = texture(OGL2Texture, pos2.xy).rgb;
+    float3 c2 = texture(OGL2Texture, pos3.zy).rgb;
+    float3 c3 = texture(OGL2Texture, pos1.xy).rgb;
+    float3 c5 = texture(OGL2Texture, pos1.zw).rgb;
+    float3 c6 = texture(OGL2Texture, pos3.xw).rgb;
+    float3 c7 = texture(OGL2Texture, pos2.zw).rgb;
+    float3 c8 = texture(OGL2Texture, pos3.zw).rgb;
 
     float3 o = float3(1.0, 1.0, 1.0);
     float3 h = float3(0.02, 0.02, 0.02);
@@ -2209,19 +2200,19 @@ float3 PaintShading(float3 color, float2 texcoord)
     for (j = int(-PaintRadius); j <= 0; ++j)  {
     for (i = int(-PaintRadius); i <= 0; ++i)  {
 
-    shade = sampleTex(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
+    shade = texture(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
     m0 += shade; k0 += shade * shade; }}
 
     for (j = int(-PaintRadius); j <= 0; ++j) {
     for (i = 0; i <= int(PaintRadius); ++i)  {
     
-    shade = sampleTex(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
+    shade = texture(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
     m1 += shade; k1 += shade * shade; }}
 
     for (j = 0; j <= int(PaintRadius); ++j)  {
     for (i = 0; i <= int(PaintRadius); ++i)  {
     
-    shade = sampleTex(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
+    shade = texture(OGL2Texture, texcoord + float2(i, j) / float2(px, py)).rgb;
     m2 += shade; k2 += shade * shade; }}
 
     float min_sigma2 = 1e+2;
@@ -2256,14 +2247,14 @@ float3 PaintShading(float3 color, float2 texcoord)
 
     float4 pos3 = pos1 + 2.0 * offset;
 
-    float3 c0 = sampleTex(OGL2Texture, pos3.xy).rgb;
-    float3 c1 = sampleTex(OGL2Texture, pos2.xy).rgb;
-    float3 c2 = sampleTex(OGL2Texture, pos3.zy).rgb;
-    float3 c3 = sampleTex(OGL2Texture, pos1.xy).rgb;
-    float3 c5 = sampleTex(OGL2Texture, pos1.zw).rgb;
-    float3 c6 = sampleTex(OGL2Texture, pos3.xw).rgb;
-    float3 c7 = sampleTex(OGL2Texture, pos2.zw).rgb;
-    float3 c8 = sampleTex(OGL2Texture, pos3.zw).rgb;
+    float3 c0 = texture(OGL2Texture, pos3.xy).rgb;
+    float3 c1 = texture(OGL2Texture, pos2.xy).rgb;
+    float3 c2 = texture(OGL2Texture, pos3.zy).rgb;
+    float3 c3 = texture(OGL2Texture, pos1.xy).rgb;
+    float3 c5 = texture(OGL2Texture, pos1.zw).rgb;
+    float3 c6 = texture(OGL2Texture, pos3.xw).rgb;
+    float3 c7 = texture(OGL2Texture, pos2.zw).rgb;
+    float3 c8 = texture(OGL2Texture, pos3.zw).rgb;
 
     float3 o = float3(1.0, 1.0, 1.0);
     float3 h = float3(0.02, 0.02, 0.02);
@@ -2534,7 +2525,7 @@ float4 DebandPass(float4 color, float2 texcoord)
 
     for(int i=0; i < int(DebandSampleCount); i++)
     {
-        float4 cn = float4(sampleTex(OGL2Texture, texcoord + on[i]).rgb, 1.0);
+        float4 cn = float4(texture(OGL2Texture, texcoord + on[i]).rgb, 1.0);
         
         #if (DEBAND_SKIP_THRESHOLD_TEST == 0)
         if(is_within_threshold(col0, cn.rgb))
@@ -2613,7 +2604,7 @@ float3 Fetch(float2 pos, float2 off)
     pos = round(pos * res + off) / res;
     if(max(abs(pos.x - 0.5), abs(pos.y - 0.5)) > 0.5) { return float3(0.0, 0.0, 0.0); }
 
-    return ToLinear(sampleTex(OGL2Texture, pos.xy).rgb);
+    return ToLinear(texture(OGL2Texture, pos.xy).rgb);
 }
 
 float2 Dist(float2 pos)
