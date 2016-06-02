@@ -14,12 +14,15 @@
 ||                                                                               ||
 |#################################################################################|
 \*===============================================================================*/
-#version 150 compatibility
+#version 330 compatibility
 
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_gpu_shader5 : enable
 #extension GL_ARB_shader_precision : enable
+#extension GL_ARB_sample_shading : enable
 #extension GL_ARB_texture_rectangle : enable
+#extension GL_ARB_shader_storage_buffer_object : enable
+#extension GL_ARB_shader_image_load_store : enable
 #extension GL_ARB_bindless_texture : enable
 #extension GL_ARB_shading_language_420pack : enable
 
@@ -28,9 +31,7 @@
                             [DEFINITIONS|GLOBALS]
 ------------------------------------------------------------------------------*/
 
-// NOTE: I intend to remove these vs texcoord offsets from here soon, and use ps offsetting instead. 
-// Removing the need for swapping inside the vs.
-
+// NOTE: For intended results;
 // Only enable (set to 1) any of the following if you also have it enabled in the fragment/slf shader.
 // Only use one of them at a time.
 
@@ -42,7 +43,7 @@
 uniform vec4 OGL2Param;
 uniform vec4 OGL2Size;
 uniform vec4 OGL2InvSize;
-uniform float FXAA_SUBPIX_SHIFT = 0.5;
+uniform float texelStep = 0.5;
 
 //VS --> PS
 in int gl_VertexID;
@@ -64,13 +65,14 @@ void main()
     Normal = normalize(gl_NormalMatrix * gl_Normal);
     halfVector = gl_LightSource[0].halfVector.xyz;
 
-    // Texcoord & Position params
+    // Texcoord, ClipVertex, & Position assignment
     gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
+    gl_ClipVertex = gl_ModelViewMatrix * gl_Vertex;
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 
     // FXAA zw uv0 coordinates /w offset
     rcpPos = gl_TextureMatrix[0] * gl_MultiTexCoord0;
-    rcpPos.zw = rcpPos.xy - (OGL2InvSize.xy * FXAA_SUBPIX_SHIFT);
+    rcpPos.zw = rcpPos.xy - (OGL2InvSize.xy * texelStep);
 
     TexCoord = gl_TexCoord[0].xy; Position = gl_Position;
 
