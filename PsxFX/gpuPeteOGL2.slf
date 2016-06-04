@@ -33,11 +33,12 @@
 //--------------------------#[CHOOSE EFFECTS]#--------------------------------\\
 
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
-#define FXAA                        0      //# High Quality Fast Approximate Anti Aliasing. With optional bilateral filtering within the samples for smooth gradients.
-#define NFAA                        0      //# Normal Filter Anti Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
+#define FXAA                        0      //# High Quality Fast Approximate Anti-Aliasing. With optional bilateral filtering within the samples for smooth gradients.
+#define DLAA                        0      //# Directionally Localized Anti-Aliasing. A soft type of Morphological Anti-Aliasing with good coverage.
+#define NFAA                        0      //# Normal Filter Anti-Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
-#define SFAA                        0      //# Guest's Soft Filter Anti Aliasing. This must be enabled in the vertex shader (slv) also, for it to work. (2D & 3D).
+#define SFAA                        0      //# Guest's Soft Filter Anti-Aliasing. This must be enabled in the vertex shader (slv) also, for it to work. (2D & 3D).
 
 //#[FS SCALING TECHNIQUES]     [1=ON|0=OFF]  #NOTE: For best results: Only enable one type of filtering at one time. Use post antialiasing OR FS filtering, not both.
 #define BILINEAR_FILTERING          0      //# Bilinear Fullscreen Texture Filtering. BiLinear filtering - light to medium filtering of textures.[2D]
@@ -239,19 +240,29 @@
 ------------------------------------------------------------------------------*/
 
 // HLSL --> GLSL
-#define int2 ivec2
 #define float2 vec2
 #define float3 vec3
 #define float4 vec4
-#define float4x4 mat4
+#define uint2 uvec2
+#define uint3 uvec3
+#define uint4 uvec4
+#define int2 ivec2
+#define int3 ivec3
+#define int4 ivec4
+#define float1x1 mat1
+#define float2x2 mat2
 #define float3x3 mat3
+#define float4x4 mat4
 #define float4x3 mat4x3
-#define static
-#define fmod mod
+#define float3x4 mat3x4
 #define frac fract
-#define mul(x, y) (y * x)
-#define lerp(x,y,s) mix(x,y,s)
+#define lerp mix
+#define fmod mod
 #define saturate(x) clamp(x, 0.0, 1.0)
+#define mul(x, y) (y * x)
+#define ddx dFdx
+#define ddy dFdy
+#define rsqrt inversesqrt
 #define SamplerState sampler2D
 
 //OGL2 Uniforms
@@ -366,6 +377,112 @@ float4 DebugClipping(float4 color)
 
     return color;
 }
+
+/*------------------------------------------------------------------------------
+                            [DLAA CODE SECTION]
+------------------------------------------------------------------------------*/
+
+#if DLAA == 1
+vec4 sampleOffset(sampler2D tex, vec2 texcoord, vec2 pixelOffset)
+{
+    return texture(tex, texcoord + pixelOffset * pixelSize);
+}
+
+vec3 DLAAPixelShader(vec4 color, vec2 texcoord)
+{
+    vec4 SC = sampleOffset(OGL2Texture, texcoord.xy, vec2( 0.0,  0.0));   
+    vec4 HN = sampleOffset(OGL2Texture, texcoord.xy, vec2(-1.5,  0.0));
+    vec4 HP = sampleOffset(OGL2Texture, texcoord.xy, vec2( 1.5,  0.0)); 
+    vec4 VN = sampleOffset(OGL2Texture, texcoord.xy, vec2( 0.0, -1.5)); 
+    vec4 VP = sampleOffset(OGL2Texture, texcoord.xy, vec2( 0.0,  1.5));
+
+    vec4 sumH = HN + HP, sumV = VN  + VP;
+    vec4 diffH = abs(sumH - (2.0 * SC)) / 2.0, diffV = abs(sumH - (2.0 * SC)) / 2.0;
+
+    float edgeH = AvgLuminance(diffH.xyz);
+    float edgeV = AvgLuminance(diffV.xyz);
+    
+    float detectH = clamp((3.0 * edgeH) - 0.1, 0.0, 1.0);
+    float detectV = clamp((3.0 * edgeV) - 0.1, 0.0, 1.0);
+
+    vec4 averageH = (sumH + SC) / 3.0, averageV = (sumV + SC) / 3.0;
+    
+    float valueH = AvgLuminance(averageH.xyz);
+    float valueV = AvgLuminance(averageV.xyz );
+
+    float blurAmountHoriz = clamp(detectH / valueH ,0.0,1.0);
+    float blurAmountVert = clamp(detectV  / valueV ,0.0,1.0);
+
+    vec4 result = mix(SC, averageH, blurAmountHoriz);
+    result = mix(result, averageV,  blurAmountVert);
+
+    vec4 VNA = sampleOffset(OGL2Texture, texcoord.xy, vec2(0.0, -3.5)); 
+    vec4 VNB = sampleOffset(OGL2Texture, texcoord.xy, vec2(0.0, -7.5));
+    vec4 VPA = sampleOffset(OGL2Texture, texcoord.xy, vec2(0.0,  3.5)); 
+    vec4 VPB = sampleOffset(OGL2Texture, texcoord.xy, vec2(0.0,  7.5)); 
+
+    vec4 HNA = sampleOffset(OGL2Texture, texcoord.xy, vec2(-3.5, 0.0)); 
+    vec4 HNB = sampleOffset(OGL2Texture, texcoord.xy, vec2(-7.5, 0.0));
+    vec4 HPA = sampleOffset(OGL2Texture, texcoord.xy, vec2( 3.5, 0.0)); 
+    vec4 HPB = sampleOffset(OGL2Texture, texcoord.xy, vec2( 7.5, 0.0)); 
+
+    float passH = (HNB.a + HNA.a + SC.a + HPA.a + HPB.a) / 5.0;
+    float passV = (VNB.a + VNA.a + SC.a + VPA.a + VPB.a ) / 5.0;
+    passH = clamp(passH * 2.0 - 1.0 , 0.0, 1.0), passV = clamp(passV * 2.0 - 1.0 , 0.0, 1.0);
+    
+    float longEdge = max(passH, passV);
+
+    if (longEdge > 1.0)
+    {
+        vec4 avgHorizLong = (HNB + HNA + SC + HPA + HPB) / 5.0;
+        vec4 avgVertLong = (VNB + VNA  + SC + VPA  + VPB) / 5.0;
+        
+        float valueHorizLong = AvgLuminance(avgHorizLong.xyz);
+        float valueVertLong = AvgLuminance(avgVertLong.xyz);
+
+        vec4 SL = sampleOffset(OGL2Texture, texcoord.xy, vec2(-1.0,  0.0) );
+        vec4 SR = sampleOffset(OGL2Texture, texcoord.xy, vec2( 1.0,  0.0) );
+        vec4 SU = sampleOffset(OGL2Texture, texcoord.xy, vec2( 0.0, -1.0) );
+        vec4 SD = sampleOffset(OGL2Texture, texcoord.xy, vec2( 0.0,  1.0) );
+
+        float VC = AvgLuminance(SC.xyz);
+        float VL = AvgLuminance(SL.xyz);
+        float VR = AvgLuminance(SR.xyz);
+        float VT = AvgLuminance(SU.xyz);
+        float VB = AvgLuminance(SD.xyz);
+
+        vec4 diffC = VC - vec4(VL, VT, VR, VB);      
+        float BL = clamp(0.0 + (valueVertLong  - VL) / diffC.x , 0.0, 1.0);
+        float BU = clamp(0.0 + (valueHorizLong - VT) / diffC.y , 0.0, 1.0);
+        float BR = clamp(1.0 + (valueVertLong  - VC) / diffC.z , 0.0, 1.0);
+        float BD = clamp(1.0 + (valueHorizLong - VC) / diffC.w , 0.0, 1.0);     
+
+        vec4 blurAmounts = vec4(BL, BR, BU, BD);
+        blurAmounts = (blurAmounts == vec4(0.0, 0.0, 0.0, 0.0)) ? vec4(1.0, 1.0, 1.0, 1.0) : blurAmounts;
+
+        vec4 longBlurHoriz = mix(SL,  SC,  blurAmounts.x);
+        longBlurHoriz = mix(SR, longBlurHoriz, blurAmounts.y);
+        
+        vec4 longBlurVert = mix(SU,  SC,  blurAmounts.z);
+        longBlurVert = mix(SD,  longBlurVert,  blurAmounts.w);
+
+        result = mix(result, longBlurHoriz, passV);
+        result = mix(result, longBlurVert, passH);
+    }
+    
+    color.rgb = result.rgb;
+
+    return color.rgb;
+}
+
+vec4 DLAAPass(float4 color, float2 texcoord)
+{
+    color.rgb = DLAAPixelShader(color, texcoord);
+    color.a = AvgLuminance(color.rgb);
+    
+    return color;
+}
+#endif
 
 /*------------------------------------------------------------------------------
                              [NFAA CODE SECTION]
@@ -2902,6 +3019,10 @@ void main()
 
     #if LANCZOS_SCALER == 1
     color = LanczosScalerPass(color, texcoord);
+    #endif
+    
+    #if DLAA == 1
+    color = DLAAPass(color, texcoord);
     #endif
 
     #if NFAA == 1
