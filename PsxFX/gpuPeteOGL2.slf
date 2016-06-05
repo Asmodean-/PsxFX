@@ -2191,9 +2191,9 @@ vec3 sRGB(vec3 c)
 }
 
 // NTSC RGB to sRGB
-vec3 NTSCtoSRGB( vec3 c )
+vec3 NTSCtoSRGB(vec3 c)
 { 
-    return sRGB(NTSC( c )); 
+    return sRGB(NTSC(c)); 
 }
 
 // Ported from SimoneT TV colors emulation 1.0 Shader
@@ -2981,6 +2981,7 @@ float4 BorderPass(float4 colorInput, float2 tex)
     vec4 diffuse;
     vec4 specular;
     float shininess;
+    vec4 sceneColor;
 };
 
 material frontMaterial = material
@@ -2988,12 +2989,12 @@ material frontMaterial = material
     gl_FrontMaterial.ambient,
     gl_FrontMaterial.diffuse,
     gl_FrontMaterial.specular,
-    gl_FrontMaterial.shininess
+    gl_FrontMaterial.shininess,
+    gl_FrontLightModelProduct.sceneColor
 );
 
 struct lightSource
 {
-    vec4 sceneColor;
     vec4 position;
     vec4 ambient;
     vec4 diffuse;
@@ -3005,7 +3006,6 @@ struct lightSource
 
 lightSource light0 = lightSource
 (
-    gl_FrontLightModelProduct.sceneColor,
     gl_LightSource[0].position,
     gl_LightSource[0].ambient,
     gl_LightSource[0].diffuse,
@@ -3028,30 +3028,32 @@ float Attenuation(float dist)
 
 vec4 PhongPass(vec4 color, vec2 texcoord)
 {
-    vec3 N = Normal;
+    vec3 N = normalize(Normal);
     vec3 L = normalize(light0.position.xyz);
     vec3 H = normalize(halfVector);
     vec3 V = normalize(-Vertex);
     vec3 R = normalize(-reflect(L, N));
 
     // calculate Ambient Term:  
-    vec4 amb = light0.ambient + frontMaterial.ambient;
+    vec3 amb = light0.ambient.xyz + frontMaterial.ambient.xyz;
 
     // calculate Diffuse Term:  
-    vec4 diff = light0.diffuse * frontMaterial.diffuse *
-    max(dot(N, L), 0.0); diff = clamp(diff, 0.0, 1.0);     
+    vec3 diff = light0.diffuse.xyz * frontMaterial.diffuse.xyz *
+    max(dot(N, L), 0.0); diff = clamp(diff, 0.0, 1.0);
 
     // calculate Specular Term:
     float dotH = max(dot(N, H), 0.0);
-    vec4 spec = light0.specular * frontMaterial.specular * pow(max(dot(R, V), 0.0),
+    vec3 spec = light0.specular.xyz * frontMaterial.specular.xyz * pow(max(dot(R, V), 0.0),
     pow(dotH, frontMaterial.shininess)); spec = clamp(spec, 0.0, 1.0);
 
     // calculate attenuation
-    float dist = length(L);
-    float atten = Attenuation(dist);
+    vec3 posL = light0.position.xyz - Position.xyz;
+    float dist = length(posL), atten = Attenuation(dist);
     
-    vec4 sceneColor = light0.sceneColor;
-    color *= sceneColor + (amb + diff + spec) * vec4(atten);
+    vec3 sceneColor = frontMaterial.sceneColor.xyz;
+    
+    color.xyz *= sceneColor + (amb + diff + spec) * vec3(atten);
+    color.w = AvgLuminance(color.xyz);
 
     return color;
 }
