@@ -80,6 +80,7 @@
 #define FxaaQuality 3                      //[1|2|3|4] Overall Fxaa quality preset (pixel coverage). 1: Low, 2: Medium, 3: High, 4: Ultra.
 #define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. Can have a pretty high performance cost if BilateralRadius is high.
 #define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the antialiasing of FXAA.
+#define xBRThreshold 0.020                 //[0.00 to 0.05] The detection threshold for applying xBR to 2D, and FXAA to 3D. (3D -> 0.0....0.05 -> 2D)
 
 //##[NFAA]
 #define NormalStrength 1.50                //[0.50 to 4.00] Strength of the Normal Filter. Raising this will increase the strength of the filter.
@@ -293,9 +294,9 @@ float4 rcpByTwo = float4(-2.00/OGL2Size.x, -2.00/OGL2Size.y, 2.00/OGL2Size.x, 2.
 float3 RGBtoXYZ(float3 rgb)
 {
     const float3x3 m = float3x3(
-    0.4124564, 0.3575761, 0.1804375,
-    0.2126729, 0.7151522, 0.0721750,
-    0.0193339, 0.1191920, 0.9503041);
+    0.6068909, 0.1735011, 0.2003480,
+    0.2989164, 0.5865990, 0.1144845,
+    0.0000000, 0.0660957, 1.1162243);
 
     return mul(m, rgb);
 }
@@ -303,9 +304,9 @@ float3 RGBtoXYZ(float3 rgb)
 float3 XYZtoRGB(float3 xyz)
 {
     const float3x3 m = float3x3(
-    3.2404542,-1.5371385,-0.4985314,
-   -0.9692660, 1.8760108, 0.0415560,
-    0.0556434,-0.2040259, 1.0572252);
+    1.9099961, -0.5324542, -0.2882091,
+   -0.9846663,  1.9991710, -0.0283082,
+    0.0583056, -0.1183781,  0.8975535);
 
     return mul(m, xyz);
 }
@@ -410,8 +411,8 @@ vec3 DLAAPixelShader(vec4 color, vec2 texcoord)
     float valueH = AvgLuminance(averageH.xyz);
     float valueV = AvgLuminance(averageV.xyz );
 
-    float blurAmountHoriz = clamp(detectH / valueH ,0.0,1.0);
-    float blurAmountVert = clamp(detectV  / valueV ,0.0,1.0);
+    float blurAmountHoriz = clamp(detectH / valueH , 0.0, 1.0);
+    float blurAmountVert = clamp(detectV  / valueV , 0.0, 1.0);
 
     vec4 result = mix(SC, averageH, blurAmountHoriz);
     result = mix(result, averageV,  blurAmountVert);
@@ -640,19 +641,19 @@ vec4 SSAAPass(vec4 color, vec2 texcoord)
 // Ported from AA 1.5 by guest(r)
 vec3 SFAAFilter(sampler2D colorSampler, vec2 texcoord)
 {
-    vec3 c11 = texture2D(colorSampler, gl_TexCoord[0].xy).xyz;
-    vec3 s00 = texture2D(colorSampler, gl_TexCoord[1].xy).xyz; 
-    vec3 s20 = texture2D(colorSampler, gl_TexCoord[2].xy).xyz; 
-    vec3 s22 = texture2D(colorSampler, gl_TexCoord[3].xy).xyz; 
-    vec3 s02 = texture2D(colorSampler, gl_TexCoord[4].xy).xyz; 
-    vec3 c00 = texture2D(colorSampler, gl_TexCoord[5].xy).xyz; 
-    vec3 c22 = texture2D(colorSampler, gl_TexCoord[6].xy).xyz; 
-    vec3 c20 = texture2D(colorSampler, gl_TexCoord[5].zw).xyz;
-    vec3 c02 = texture2D(colorSampler, gl_TexCoord[6].zw).xyz;
-    vec3 c10 = texture2D(colorSampler, gl_TexCoord[1].zw).xyz; 
-    vec3 c21 = texture2D(colorSampler, gl_TexCoord[2].zw).xyz; 
-    vec3 c12 = texture2D(colorSampler, gl_TexCoord[3].zw).xyz; 
-    vec3 c01 = texture2D(colorSampler, gl_TexCoord[4].zw).xyz;     
+    vec3 c11 = texture(colorSampler, gl_TexCoord[0].xy).xyz;
+    vec3 s00 = texture(colorSampler, gl_TexCoord[1].xy).xyz; 
+    vec3 s20 = texture(colorSampler, gl_TexCoord[2].xy).xyz; 
+    vec3 s22 = texture(colorSampler, gl_TexCoord[3].xy).xyz; 
+    vec3 s02 = texture(colorSampler, gl_TexCoord[4].xy).xyz; 
+    vec3 c00 = texture(colorSampler, gl_TexCoord[5].xy).xyz; 
+    vec3 c22 = texture(colorSampler, gl_TexCoord[6].xy).xyz; 
+    vec3 c20 = texture(colorSampler, gl_TexCoord[5].zw).xyz;
+    vec3 c02 = texture(colorSampler, gl_TexCoord[6].zw).xyz;
+    vec3 c10 = texture(colorSampler, gl_TexCoord[1].zw).xyz; 
+    vec3 c21 = texture(colorSampler, gl_TexCoord[2].zw).xyz; 
+    vec3 c12 = texture(colorSampler, gl_TexCoord[3].zw).xyz; 
+    vec3 c01 = texture(colorSampler, gl_TexCoord[4].zw).xyz;     
 
     vec3 dt = vec3(1.0, 1.0, 1.0);
 
@@ -1393,10 +1394,6 @@ vec3 FxaaPixelShader(vec2 texcoord, vec4 pos, vec2 texelStep)
     vec3 rgbSampleNeg = BilateralFilter(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
     vec3 rgbSamplePos = BilateralFilter(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
     
-    #elif xBRlv2Sampling == 1
-    vec3 rgbSampleNeg = xBRvFilter(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
-    vec3 rgbSamplePos = xBRvFilter(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
-
     #else
     vec3 rgbSampleNeg = texture(OGL2Texture, texcoord + direction * (1.0/3.0 - 0.5)).rgb;
     vec3 rgbSamplePos = texture(OGL2Texture, texcoord + direction * (2.0/3.0 - 0.5)).rgb;
@@ -1418,9 +1415,46 @@ vec3 FxaaPixelShader(vec2 texcoord, vec4 pos, vec2 texelStep)
     else return rgbFourTab; // four samples. 
 }
 
+#if xBRlv2Sampling == 1
+float diff2D (vec2 coord)
+{
+    const vec3 dt = vec3(1.0, 1.0, 1.0);
+    
+    vec3 c00 = texture(OGL2Texture, coord + 0.25*(-dx-dy)).xyz; 
+    vec3 c20 = texture(OGL2Texture, coord + 0.25*( dx-dy)).xyz; 
+    vec3 c02 = texture(OGL2Texture, coord + 0.25*(-dx+dy)).xyz; 
+    vec3 c22 = texture(OGL2Texture, coord + 0.25*( dx+dy)).xyz;
+
+    vec3 mn  = min(min(c00,c20), min(c02,c22)); 
+    vec3 mx  = max(max(c00,c20), max(c02,c22));
+
+    return dot(mx-mn, dt);
+}
+
+vec3 MergeXBR(vec3 color, vec2 texcoord)
+{
+    const float xbrthreshold  = xBRThreshold;
+
+    vec2 fp  = fract(texcoord * OGLSize);
+    vec2 tex = texcoord - fp * OGLInvSize + 0.5 * OGLInvSize;
+    vec2 locator  = sign(fp - vec2(0.5000000001, 0.5000000001));
+
+    float maxdiff = max(max(diff2D(tex+locator*dx), diff2D(tex+locator*dy)), diff2D(tex));
+
+    if (maxdiff <= xbrthreshold) { color = xBRvFilter(OGL2Texture, texcoord);}
+    else { color = FxaaPixelShader(texcoord, rcpPos, pixelSize); }
+    
+    return color;
+}
+#endif
+
 vec4 FXAAPass(float4 Fxaa, vec2 texcoord)
 {
+    #if xBRlv2Sampling == 1
+    Fxaa.rgb = MergeXBR(Fxaa.rgb, texcoord);
+    #else
     Fxaa.rgb = FxaaPixelShader(texcoord, rcpPos, pixelSize);
+    #endif
     Fxaa.a = AvgLuminance(Fxaa.rgb);
     
     return Fxaa;
@@ -1899,11 +1933,7 @@ float4 TonemapPass(float4 color, float2 texcoord)
     if (TonemapType == 1) { tonemap = TmCurve(tonemap); }
 
     // RGB -> XYZ conversion
-    const float3x3 RGB2XYZ = float3x3(0.4124564, 0.3575761, 0.1804375,
-                                      0.2126729, 0.7151522, 0.0721750,
-                                      0.0193339, 0.1191920, 0.9503041);
-
-    float3 XYZ = mul(RGB2XYZ, tonemap);
+    float3 XYZ = RGBtoXYZ(tonemap);
 
     // XYZ -> Yxy conversion
     float3 Yxy;
@@ -1934,11 +1964,7 @@ float4 TonemapPass(float4 color, float2 texcoord)
     if (TonemapType == 3) { XYZ = TmCurve(XYZ); }
 
     // XYZ -> RGB conversion
-    const float3x3 XYZ2RGB = float3x3(3.2404542,-1.5371385,-0.4985314,
-                                     -0.9692660, 1.8760108, 0.0415560,
-                                      0.0556434,-0.2040259, 1.0572252);
-
-    tonemap = mul(XYZ2RGB, XYZ);
+    tonemap = XYZtoRGB(XYZ);
 
     float shadowmask = pow(saturate(blackLevel), float(BlackLevels));
     tonemap = tonemap * float3(shadowmask, shadowmask, shadowmask);
