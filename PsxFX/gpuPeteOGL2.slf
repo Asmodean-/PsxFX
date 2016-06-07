@@ -35,7 +35,6 @@
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
 #define FXAA                        0      //# High Quality Fast Approximate Anti-Aliasing. With optional bilateral filtering within the samples for smooth gradients.
 #define DLAA                        0      //# Directionally Localized Anti-Aliasing. A soft type of Morphological Anti-Aliasing with good coverage.
-#define NFAA                        0      //# Normal Filter Anti-Aliasing. Subtle AA, with good edge detection, little to no blur. works better with 3D only.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
 #define SFAA                        0      //# Guest's Soft Filter Anti-Aliasing. This must be enabled in the vertex shader (slv) also, for it to work. (2D & 3D).
@@ -82,12 +81,6 @@
 #define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. Can have a pretty high performance cost if BilateralRadius is high.
 #define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the antialiasing of FXAA.
 #define xBRThreshold 0.020                 //[0.00 to 0.05] The detection threshold for applying xBR to 2D, and FXAA to 3D. (3D -> 0.0....0.05 -> 2D)
-
-//##[NFAA]
-#define NormalStrength 1.50                //[0.50 to 4.00] Strength of the Normal Filter. Raising this will increase the strength of the filter.
-#define NormalWidth 0.80                   //[0.10 to 2.00] Width of the Normal Filter edge detection. This can be altered depending on the edge detection method used.
-#define EdgeDetection 2                    //[1 or 2] 1 Uses color detection(more raw coverage, less accuracy). 2uses luma edge detection(less raw coverage, more accuracy).
-#define ShowEdges 0                        //[0 or 1] Shows the edge detection. Can be useful for fine tuning, or such.
 
 //##[SSAA]
 #define FilterWidth 1.00                   //[0.50 to 2.00] Width of the SSAA filter. Raising this will increase the width of the edge filter. 
@@ -492,115 +485,6 @@ vec4 DLAAPass(float4 color, float2 texcoord)
     color.rgb = DLAAPixelShader(color, texcoord);
     color.a = AvgLuminance(color.rgb);
     
-    return color;
-}
-#endif
-
-/*------------------------------------------------------------------------------
-                             [NFAA CODE SECTION]
-------------------------------------------------------------------------------*/
-
-#if NFAA == 1
-float filterStrength = NormalStrength;
-float filterSpread = NormalWidth;
-
-int useColor = EdgeDetection;
-int debug = ShowEdges;
-
-vec2 findContrastByLuminance(sampler2D colorSampler, vec2 texcoord) 
-{
-    // Normal offsets, scale by filter spread
-    vec2 upOffset = vec2(0.0, pixelSize.y) * filterSpread;
-    vec2 rightOffset = vec2(pixelSize.x, 0.0) * filterSpread;
-
-    float topHeight         = AvgLuminance( texture( colorSampler, texcoord + upOffset              ).rgb );
-    float bottomHeight      = AvgLuminance( texture( colorSampler, texcoord - upOffset              ).rgb );
-    float rightHeight       = AvgLuminance( texture( colorSampler, texcoord + rightOffset           ).rgb );
-    float leftHeight        = AvgLuminance( texture( colorSampler, texcoord - rightOffset           ).rgb );
-    float leftTopHeight     = AvgLuminance( texture( colorSampler, texcoord - rightOffset + upOffset).rgb );
-    float leftBottomHeight  = AvgLuminance( texture( colorSampler, texcoord - rightOffset - upOffset).rgb );
-    float rightBottomHeight = AvgLuminance( texture( colorSampler, texcoord + rightOffset + upOffset).rgb );
-    float rightTopHeight    = AvgLuminance( texture( colorSampler, texcoord + rightOffset - upOffset).rgb );
-
-    // Normal map creation
-    float sum0 = rightTopHeight    + bottomHeight + leftTopHeight;
-    float sum1 = leftBottomHeight  + topHeight    + rightBottomHeight;
-    float sum2 = leftTopHeight     + rightHeight  + leftBottomHeight;
-    float sum3 = rightBottomHeight + leftHeight   + rightTopHeight;
-
-    // Subtract the opposite sample set for final vectors
-    float vector1 = (sum0 - sum1) * filterStrength;
-    float vector2 = (sum3 - sum2) * filterStrength;
-
-    vec2 Vectors = vec2(vector1, vector2);
-
-    return Vectors;
-}
-
-vec2 findContrastByColor(sampler2D colorSampler, vec2 texcoord)
-{
-    // Normal offsets, scale by filter spread
-    vec2 upOffset = vec2( 0, pixelSize.y ) * filterSpread;
-    vec2 rightOffset = vec2( pixelSize.x, 0 ) * filterSpread;
-
-    vec3 topHeight         = texture( colorSampler, texcoord + upOffset              ).rgb;
-    vec3 bottomHeight      = texture( colorSampler, texcoord - upOffset              ).rgb;
-    vec3 rightHeight       = texture( colorSampler, texcoord + rightOffset           ).rgb;
-    vec3 leftHeight        = texture( colorSampler, texcoord - rightOffset           ).rgb;
-    vec3 leftTopHeight     = texture( colorSampler, texcoord - rightOffset + upOffset).rgb;
-    vec3 leftBottomHeight  = texture( colorSampler, texcoord - rightOffset - upOffset).rgb;
-    vec3 rightBottomHeight = texture( colorSampler, texcoord + rightOffset + upOffset).rgb;
-    vec3 rightTopHeight    = texture( colorSampler, texcoord + rightOffset - upOffset).rgb;
-
-    // Normal map creation
-    vec3 sum0 = rightTopHeight    + bottomHeight + leftTopHeight;
-    vec3 sum1 = leftBottomHeight  + topHeight    + rightBottomHeight;
-    vec3 sum2 = leftTopHeight     + rightHeight  + leftBottomHeight;
-    vec3 sum3 = rightBottomHeight + leftHeight   + rightTopHeight;
-
-    // Subtract the opposite sample set for final vectors
-    float vector1 = length(sum0 - sum1) * filterStrength;
-    float vector2 = length(sum3 - sum2) * filterStrength;
-
-    vec2 Vectors = vec2(vector1, vector2);
-
-    return Vectors;
-}
-
-vec4 NFAAPass(vec4 color, vec2 texcoord) 
-{
-    vec2 Vectors;
-    filterStrength += (filterSpread/2);
-
-    if (useColor == 1)
-    { 
-        Vectors = findContrastByColor(OGL2Texture, texcoord.xy);
-    }
-    else
-    {
-        Vectors = findContrastByLuminance(OGL2Texture, texcoord.xy);
-    }
-
-    float filterClamp = filterStrength/filterSpread;
-
-    Vectors.xy = clamp(Vectors, -vec2(filterClamp,filterClamp), vec2(filterClamp,filterClamp));
-
-    vec2 Normal = vec2(Vectors.x, Vectors.y) * pixelSize;
-
-    vec4 Scene0 = texture(OGL2Texture, texcoord.xy, 0.0);
-    vec4 Scene1 = texture(OGL2Texture, texcoord.xy + Normal.xy, 0.0);
-    vec4 Scene2 = texture(OGL2Texture, texcoord.xy - Normal.xy, 0.0);
-    vec4 Scene3 = texture(OGL2Texture, texcoord.xy + vec2(Normal.x, -Normal.y), 0.0);
-    vec4 Scene4 = texture(OGL2Texture, texcoord.xy - vec2(Normal.x, -Normal.y), 0.0);
-    
-    color = (Scene0 + Scene1 + Scene2 + Scene3 + Scene4) / 5.0;
-
-    // Debug Output
-    if (debug == 1) 
-    {
-        color .xyz = normalize(vec3(Vectors.x, Vectors.y, 1.0) * 0.5 + 0.5);
-    }
-
     return color;
 }
 #endif
@@ -3099,10 +2983,6 @@ void main()
     
     #if DLAA == 1
     color = DLAAPass(color, texcoord);
-    #endif
-
-    #if NFAA == 1
-    color = NFAAPass(color, texcoord);
     #endif
 
     #if SSAA == 1
