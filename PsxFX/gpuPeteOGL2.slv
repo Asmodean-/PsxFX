@@ -50,6 +50,7 @@ in int gl_VertexID;
 out vec2 TexCoord;
 out vec3 Normal;
 out vec3 Vertex;
+out vec3 lightPos;
 out vec3 halfVector;
 out vec4 Position;
 out vec4 rcpPos;
@@ -62,8 +63,9 @@ void main()
 {
     // Setup V, N, H for passing lighting params to PS
     Vertex = vec3(gl_ModelViewMatrix * gl_Vertex);
-    Normal = normalize(gl_NormalMatrix * gl_Normal);
+    Normal = gl_NormalMatrix * gl_Normal;
     halfVector = gl_LightSource[0].halfVector.xyz;
+    lightPos = gl_LightSource[0].position.xyz - Vertex;
 
     // Texcoord, ClipVertex, & Position assignment
     gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
