@@ -54,7 +54,7 @@
 #define SCENE_TONEMAPPING           0      //# HDR Scene Tonemapping. Layered component conversion, and applies scene tone mapping.
 #define COLOR_CORRECTION            0      //# Component Color Correction. Colorspace conversion, with correction curves, and multiple palette types.
 #define CROSS_PROCESSING            0      //# Filmic Cross Processing. Alters the tone of the scene, crossing the game's color set, with another.
-#define COLOR_EMULATION             0      //# SimoneT's TV Colors Emulation Shader. Use to emulate the original PSX color space tone, and vibrancy.
+#define NTSC_TV_EMULATION           0      //# SimoneT's TV Colors Emulation Shader. Use to emulate the original PSX color space tone, and vibrancy.
 #define GAMMA_CORRECTION            0      //# RGB Gamma Correction. Fixed expansion to variable compression gamma correction curve.
 #define PIXEL_VIBRANCE              0      //# Pixel Vibrance. Intelligently adjusts pixel vibrance depending on original color saturation.
 #define COLOR_GRADING               0      //# Post-Complement Colour Grading. Alters individual colour components on a scene, to manip selected colour tones.
@@ -124,7 +124,7 @@
 #define TonemapType 1                      //[0|1|2|3] The base tone mapping operator. 0 is LDR, 1 is HDR(original), 2 & 3 are Filmic HDR(slight grading).
 #define TonemapMask 0                      //[0 or 1] Enables an ALU tone masking curve. Produces a nice cinematic look. Suits some games more than others.
 #define MaskStrength 0.10                  //[0.000 to 1.000] Strength of the tone masking. Higher for a stronger effect. This is a dependency of TonemapMask.
-#define ToneAmount 0.350                   //[0.050 to 1.000] Tonemap strength (tone correction). Higher for stronger tone mapping, lower for lighter.
+#define ToneAmount 0.300                   //[0.050 to 1.000] Tonemap strength (tone correction). Higher for stronger tone mapping, lower for lighter.
 #define BlackLevels 0.060                  //[0.000 to 1.000] Black level balance (shadow correction). Increase to deepen blacks, lower to lighten them.
 #define Exposure 1.000                     //[0.100 to 2.000] White correction (brightness). Higher values for more scene exposure, lower for less.
 #define Luminance 1.000                    //[0.100 to 2.000] Luminance average (luminance correction). Higher values will lower scene luminance average.
@@ -273,6 +273,7 @@ in vec3 Normal;
 in vec4 rcpPos;
 in vec4 Position;
 in vec3 halfVector;
+in vec3 lightPos;
 
 //PS --> Output
 out vec4 FragColor;
@@ -1681,12 +1682,13 @@ float4 DefocusFilter(sampler2D tex, float2 texcoord, float2 defocus)
 float4 BloomPass(float4 color, float2 texcoord)
 {
     float anflare = 4.0;
+    float width = BloomWidth;
 
     float2 defocus = float2(BloomDefocus, BloomDefocus);
-    float4 bloom = DefocusFilter(OGL2Texture, texcoord, defocus);
+    float4 bloom = DefocusFilter(OGL2Texture, texcoord, clamp(defocus, 1.0, 1.5));
 
-    float2 dx = float2(pixelSize.x * float(BloomWidth), 0.0);
-    float2 dy = float2(0.0, pixelSize.y * float(BloomWidth));
+    float2 dx = float2(pixelSize.x * width, 0.0);
+    float2 dy = float2(0.0, pixelSize.y * width);
 
     float2 mdx = float2(dx.x * defocus.x, 0.0);
     float2 mdy = float2(0.0, dy.y * defocus.y);
@@ -2057,7 +2059,7 @@ float4 CorrectionPass(float4 color, float2 texcoord)
                          [TV COLORS EMU CODE SECTION]
 ------------------------------------------------------------------------------*/
 
-#if COLOR_EMULATION == 1
+#if NTSC_TV_EMULATION == 1
 // conversion from NTSC RGB Reference White D65 ( color space used by NA/Japan TV's ) to XYZ
 vec3 NTSC(vec3 c)
 {
@@ -2931,12 +2933,12 @@ vec4 PhongPass(vec4 color, vec2 texcoord)
     pow(dotH, frontMaterial.shininess)); spec = clamp(spec, 0.0, 1.0);
 
     // calculate attenuation
-    vec3 posL = light0.position.xyz - Position.xyz;
-    float dist = length(posL), atten = Attenuation(dist);
+    float dist = length(lightPos), atten = Attenuation(dist);
     
     vec3 sceneColor = frontMaterial.sceneColor.xyz;
+    vec3 phong = (amb + diff + spec) * vec3(atten);
     
-    color.xyz *= sceneColor + (amb + diff + spec) * vec3(atten);
+    color.xyz *= sceneColor + phong;
     color.w = AvgLuminance(color.xyz);
 
     return color;
@@ -3033,7 +3035,7 @@ void main()
     color = ColorGrading(color, texcoord);
     #endif
     
-    #if COLOR_EMULATION == 1
+    #if NTSC_TV_EMULATION == 1
     color = TvColorsPass(color, texcoord);
     #endif
 
