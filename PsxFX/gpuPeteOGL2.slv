@@ -46,14 +46,13 @@ uniform vec4 OGL2InvSize;
 uniform float texelStep = 0.5;
 
 //VS --> PS
-in int gl_VertexID;
-out vec2 TexCoord;
-out vec3 Normal;
-out vec3 Vertex;
-out vec3 lightPos;
-out vec3 halfVector;
+out vec4 TexCoord;
+out vec4 Vertex;
 out vec4 Position;
 out vec4 rcpPos;
+out vec3 Normal;
+out vec3 lightPos;
+out vec3 halfVector;
 
 /*------------------------------------------------------------------------------
                         [MAIN() & VERTEX CODE SECTION]
@@ -61,22 +60,24 @@ out vec4 rcpPos;
 
 void main()
 {
-    // Setup V, N, H for passing lighting params to PS
-    Vertex = vec3(gl_ModelViewMatrix * gl_Vertex);
-    Normal = gl_NormalMatrix * gl_Normal;
-    halfVector = gl_LightSource[0].halfVector.xyz;
-    lightPos = gl_LightSource[0].position.xyz - Vertex;
 
-    // Texcoord, ClipVertex, & Position assignment
-    gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
-    gl_ClipVertex = gl_ModelViewMatrix * gl_Vertex;
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    // Texcoord, & Position assignment
+    TexCoord = gl_TextureMatrix[0] * gl_MultiTexCoord0;
+    Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    
+    // Setup N, V, H, L for passing lighting params to PS
+    Normal = gl_NormalMatrix * gl_Normal;
+    Vertex = gl_ModelViewMatrix * gl_Vertex;
+    
+    halfVector = gl_LightSource[0].halfVector.xyz;
+    lightPos = gl_LightSource[0].position.xyz - Position.xyz;
 
     // FXAA zw uv0 coordinates /w offset
     rcpPos = gl_TextureMatrix[0] * gl_MultiTexCoord0;
     rcpPos.zw = rcpPos.xy - (OGL2InvSize.xy * texelStep);
 
-    TexCoord = gl_TexCoord[0].xy; Position = gl_Position;
+    // Assignment to gl built-in variables
+    gl_TexCoord[0] = TexCoord; gl_ClipVertex = Vertex; gl_Position = Position;
 
     #if XBR_ENABLED == 1
     //  xBR VS code path
