@@ -269,11 +269,13 @@ uniform sampler2D OGL2Texture;
 //VS --> PS
 in vec4 TexCoord;
 in vec4 Vertex;
+in vec3 Vector;
 in vec3 Normal;
 in vec4 rcpPos;
 in vec4 Position;
-in vec3 halfVector;
 in vec3 lightPos;
+in vec3 lightDist;
+in float Distance;
 
 //PS --> Output
 out vec4 FragColor;
@@ -2881,7 +2883,6 @@ material frontMaterial = material
 
 struct lightSource
 {
-    vec4 position;
     vec4 ambient;
     vec4 diffuse;
     vec4 specular;
@@ -2892,7 +2893,6 @@ struct lightSource
 
 lightSource light0 = lightSource
 (
-    gl_LightSource[0].position,
     gl_LightSource[0].ambient,
     gl_LightSource[0].diffuse,
     gl_LightSource[0].specular,
@@ -2901,7 +2901,7 @@ lightSource light0 = lightSource
     gl_LightSource[0].quadraticAttenuation
  );
 
-float Attenuation(float dist)
+float CalcAttenuation(float dist)
 {
     float consAtten = light0.constantAttenuation;
     float lineAtten = light0.linearAttenuation;
@@ -2914,31 +2914,34 @@ float Attenuation(float dist)
 
 vec4 PhongPass(vec4 color, vec2 texcoord)
 {
+    // setup input params
     vec3 N = normalize(Normal);
-    vec3 L = normalize(light0.position.xyz);
-    vec3 H = normalize(halfVector);
-    vec3 V = normalize(-Vertex.xyz);
-    vec3 R = normalize(-reflect(L, N));
+    vec3 L = normalize(lightPos);
+    vec3 E = normalize(Vector);
+    vec3 R = normalize(reflect(-L, N));
+    
+    float dotNL = max(dot(N, L), 0.0); // normal, position
+    float dotRE = max(dot(R, E), 0.0); // reflect, eyeVec
     
     // calculate attenuation
-    float dist = length(lightPos), atten = Attenuation(dist);
+    float attenuation = CalcAttenuation(Distance);
 
-    // calculate Ambient Term:  
-    vec3 amb = light0.ambient.xyz + frontMaterial.ambient.xyz;
+    // calculate ambient:  
+    vec4 scene = gl_LightModel.ambient * frontMaterial.ambient;
+    vec3 amb = vec3(scene + light0.ambient + frontMaterial.ambient);
 
-    // calculate Diffuse Term:  
-    vec3 diff = light0.diffuse.xyz * frontMaterial.diffuse.xyz *
-    max(dot(N, L), 0.0); diff = clamp(diff * vec3(atten), 0.0, 1.0);
+    // calculate diffuse:  
+    vec3 diff = vec3(attenuation) * vec3(light0.diffuse * frontMaterial.diffuse) * dotNL;
+    diff = clamp(diff, 0.0, 1.0);
 
-    // calculate Specular Term:
-    float dotH = max(dot(N, H), 0.0);
-    vec3 spec = light0.specular.xyz * frontMaterial.specular.xyz * pow(max(dot(R, V), 0.0),
-    pow(dotH, frontMaterial.shininess)); spec = clamp(spec * vec3(atten), 0.0, 1.0);
+    // calculate specular:
+    vec3 spec = vec3(attenuation) * vec3(light0.specular * frontMaterial.specular) *
+    pow(dotRE, frontMaterial.shininess); spec = clamp(spec, 0.0, 1.0);
     
-    vec3 sceneColor = frontMaterial.sceneColor.xyz;
+    // setup phong, attenuation:
     vec3 phong = amb + diff + spec;
     
-    color.xyz *= sceneColor + phong;
+    color.xyz *= phong;
     color.w = AvgLuminance(color.xyz);
 
     return color;
