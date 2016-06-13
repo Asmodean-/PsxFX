@@ -49,12 +49,12 @@ uniform float texelStep = 0.5;
 //VS --> PS
 out vec4 TexCoord;
 out vec4 Vertex;
-out vec3 Vector;
+out vec3 eyeVect;
 out vec3 Normal;
 out vec4 rcpPos;
 out vec4 Position;
 out vec3 lightPos;
-out vec3 lightDist;
+out vec3 lightVect;
 out float Distance;
 
 /*------------------------------------------------------------------------------
@@ -69,12 +69,12 @@ void main()
     
     // Setup V, N, L for passing lighting params to PS
     Vertex = gl_ModelViewMatrix * gl_Vertex;
-    Normal = normalize(gl_NormalMatrix * gl_Normal);
-    Vector = normalize(-Vertex.xyz);
+    Normal = gl_NormalMatrix * gl_Normal;
     
     lightPos = gl_LightSource[0].position.xyz;
-    lightDist = lightPos - Position.xyz;
-    Distance = length(lightPos);
+    lightVect = lightPos - Position.xyz;
+    Distance = length(lightVect);
+    eyeVect = Position.xyz;
 
     // FXAA zw uv0 coordinates /w offset
     rcpPos = gl_TextureMatrix[0] * gl_MultiTexCoord0;
