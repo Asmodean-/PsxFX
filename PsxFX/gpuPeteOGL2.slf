@@ -269,12 +269,12 @@ uniform sampler2D OGL2Texture;
 //VS --> PS
 in vec4 TexCoord;
 in vec4 Vertex;
-in vec3 Vector;
+in vec3 eyeVect;
 in vec3 Normal;
 in vec4 rcpPos;
 in vec4 Position;
 in vec3 lightPos;
-in vec3 lightDist;
+in vec3 lightVect;
 in float Distance;
 
 //PS --> Output
@@ -2915,31 +2915,32 @@ float CalcAttenuation(float dist)
 vec4 PhongPass(vec4 color, vec2 texcoord)
 {
     // setup input params
-    vec3 N = normalize(Normal);
-    vec3 L = normalize(lightPos);
-    vec3 E = normalize(Vector);
-    vec3 R = normalize(reflect(-L, N));
+    vec3 eyeVector = normalize(eyeVect);
+    vec3 normalVector = normalize(Normal);
     
-    float dotNL = max(dot(N, L), 0.0); // normal, position
-    float dotRE = max(dot(R, E), 0.0); // reflect, eyeVec
+    // calculate reflection
+    vec3 reflection = reflect(-lightVect, normalVector);
     
     // calculate attenuation
     float attenuation = CalcAttenuation(Distance);
-
-    // calculate ambient:  
-    vec4 scene = gl_LightModel.ambient * frontMaterial.ambient;
-    vec3 amb = vec3(scene + light0.ambient + frontMaterial.ambient);
-
-    // calculate diffuse:  
-    vec3 diff = vec3(attenuation) * vec3(light0.diffuse * frontMaterial.diffuse) * dotNL;
-    diff = clamp(diff, 0.0, 1.0);
-
-    // calculate specular:
-    vec3 spec = vec3(attenuation) * vec3(light0.specular * frontMaterial.specular) *
-    pow(dotRE, frontMaterial.shininess); spec = clamp(spec, 0.0, 1.0);
     
-    // setup phong, attenuation:
-    vec3 phong = amb + diff + spec;
+    float nDotL = max(dot(normalVector, lightVect), 0.0); // normal, position
+    float eDotR = max(dot(eyeVector, reflection), 0.0);   // eyeVec, reflect
+
+    // calculate scene ambient:  
+    vec4 scene = gl_LightModel.ambient * frontMaterial.ambient;
+    vec3 ambient = vec3(scene + light0.ambient + frontMaterial.ambient);
+
+    // calculate mat diffuse:  
+    vec3 diffuse = vec3(attenuation) * vec3(light0.diffuse * frontMaterial.diffuse) * nDotL;
+    diffuse = clamp(diffuse, 0.0, 1.0);
+
+    // calculate specular highlights:
+    vec3 specular = vec3(attenuation) * vec3(light0.specular * frontMaterial.specular) *
+    pow(eDotR, frontMaterial.shininess); specular = clamp(specular, 0.0, 1.0);
+    
+    // calculate phong lighting:
+    vec3 phong = ambient + diffuse + specular;
     
     color.xyz *= phong;
     color.w = AvgLuminance(color.xyz);
