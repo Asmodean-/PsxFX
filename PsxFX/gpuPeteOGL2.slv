@@ -14,7 +14,7 @@
 ||                                                                               ||
 |#################################################################################|
 \*===============================================================================*/
-#version 330 compatibility
+#version 150 compatibility
 
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_gpu_shader5 : enable
@@ -65,7 +65,7 @@ void main()
 {
     // Texcoord, & Position assignment
     TexCoord = gl_TextureMatrix[0] * gl_MultiTexCoord0;
-    Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    Position = ftransform();
     
     // Setup V, N, L for passing lighting params to PS
     Vertex = gl_ModelViewMatrix * gl_Vertex;
@@ -82,6 +82,14 @@ void main()
 
     // Assignment to gl built-in variables
     gl_TexCoord[0] = TexCoord; gl_ClipVertex = Vertex; gl_Position = Position;
+
+    gl_TexCoord[1] = gl_TextureMatrix[1] * gl_MultiTexCoord1;
+    gl_TexCoord[2] = gl_TextureMatrix[2] * gl_MultiTexCoord2;
+    gl_TexCoord[3] = gl_TextureMatrix[3] * gl_MultiTexCoord3;
+    gl_TexCoord[4] = gl_TextureMatrix[4] * gl_MultiTexCoord4;
+    gl_TexCoord[5] = gl_TextureMatrix[5] * gl_MultiTexCoord5;
+    gl_TexCoord[6] = gl_TextureMatrix[6] * gl_MultiTexCoord6;
+    gl_TexCoord[7] = gl_TextureMatrix[7] * gl_MultiTexCoord7;
 
     #if XBR_ENABLED == 1
     //  xBR VS code path
@@ -128,15 +136,5 @@ void main()
         gl_TexCoord[2].zw = gl_TexCoord[0].xy + ddx;
         gl_TexCoord[3].zw = gl_TexCoord[0].xy + ddy;
         gl_TexCoord[4].zw = gl_TexCoord[0].xy - ddx;
-
-    #else
-    //  Default VS code path
-        gl_TexCoord[1] = gl_TextureMatrix[1] * gl_MultiTexCoord1;
-        gl_TexCoord[2] = gl_TextureMatrix[2] * gl_MultiTexCoord2;
-        gl_TexCoord[3] = gl_TextureMatrix[3] * gl_MultiTexCoord3;
-        gl_TexCoord[4] = gl_TextureMatrix[4] * gl_MultiTexCoord4;
-        gl_TexCoord[5] = gl_TextureMatrix[5] * gl_MultiTexCoord5;
-        gl_TexCoord[6] = gl_TextureMatrix[6] * gl_MultiTexCoord6;
-        gl_TexCoord[7] = gl_TextureMatrix[7] * gl_MultiTexCoord7;
     #endif
 }
