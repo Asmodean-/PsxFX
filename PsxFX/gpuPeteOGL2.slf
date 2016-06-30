@@ -14,7 +14,7 @@
 ||                                                                               ||
 |#################################################################################|
 \*===============================================================================*/
-#version 330 compatibility
+#version 150 compatibility
 
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_ARB_gpu_shader5 : enable
@@ -33,7 +33,7 @@
 //--------------------------#[CHOOSE EFFECTS]#--------------------------------\\
 
 //#[ANTIALIASING TECHNIQUES]   [1=ON|0=OFF]  #NOTE: For best results: use an antialiasing OR filtering technique. Not both together.
-#define FXAA                        1      //# High Quality Fast Approximate Anti-Aliasing. With optional bilateral filtering within the samples for smooth gradients.
+#define FXAA                        1      //# High Quality Fast Approximate Anti-Aliasing. With optional xBR, & Bilateral sampling. Providing the benefits of 3 in 1.
 #define DLAA                        0      //# Directionally Localized Anti-Aliasing. A soft type of Morphological Anti-Aliasing with good coverage.
 #define SSAA                        0      //# Shader-Based Pseudo SuperSampling. A light AA that scales well with high resolutions. (2D & 3D).
 #define XBRV                        0      //# Hyllian's xBR-lv2-3D Shader. xBR interpolation scaling. This must be enabled in the vertex shader (slv) also, for it to work.
@@ -76,10 +76,10 @@
 ------------------------------------------------------------------------------*/
 
 //##[FXAA]
-#define FxaaSubpixMax 1.50                 //[0.50 to 4.00] Amount of subpixel anti-aliasing. Higher values for a stronger effect, & edge coverage.
+#define FxaaSubpixMax 4.00                 //[1.00 to 8.00] Amount of subpixel anti-aliasing. Higher values for a stronger effect, & edge coverage.
 #define FxaaQuality 3                      //[1|2|3|4] Overall Fxaa quality preset (pixel coverage). 1: Low, 2: Medium, 3: High, 4: Ultra.
-#define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. Can have a pretty high performance cost if BilateralRadius is high.
-#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the antialiasing of FXAA.
+#define BilateralSampling 0                //[0 or 1] Use Bilateral filtering within the FXAA coverage. High performance cost if BilateralRadius isset too high. (use bilateral settings)
+#define xBRlv2Sampling 0                   //[0 or 1] Use xBR-lv2-3D within the FXAA coverage. Enables the 2D interpolation of xBR, with the 3D antialiasing of FXAA. (use xBR settings & enable in .slv)
 #define xBRThreshold 0.020                 //[0.00 to 0.05] The detection threshold for applying xBR to 2D, and FXAA to 3D. (3D -> 0.0....0.05 -> 2D)
 
 //##[SSAA]
@@ -105,7 +105,7 @@
 
 //##[BILATERAL_FILTERING]
 #define BilateralRadius 3.00               //[1.00 to 8.00] Radius of the filter. Increasing the radius leads to more pixel lookups, so higher values require more performance.
-#define BilateralWeight 0.15               //[0.10 to 1.00] Central weight of the filter. Raising this increases the overall filter width, along with the strength.
+#define BilateralWeight 0.20               //[0.10 to 1.00] Central weight of the filter. Raising this increases the overall filter width, along with the strength.
 
 //##[DDTI_FILTERING]
 #define PixelShift 0.25                    //[0.10 to 1.00] Pixel offset amount. If you want to use an st offset, 0.25 is generally recommended. 0.0 is off.
@@ -361,6 +361,7 @@ float3 YxytoXYZ(float3 Yxy)
 }
 
 //Average Relative Luminance (HSP Color Model)
+//sqrt(0.299 * R^2 + 0.587 * G^2 + 0.114 * B^2)
 const float3 lumCoeff = float3(0.2126729, 0.7151522, 0.0721750);
 float AvgLuminance(float3 color)
 {
@@ -1554,6 +1555,7 @@ float4 SampleBicubic(sampler2D texSample, float2 texcoord)
 
     nSum = nSum + (Samples * vecCoeff2 * vecCoeff1);
     nDenom = nDenom + (vecCoeff2 * vecCoeff1); }}
+    
     return nSum / nDenom;
 }
 
@@ -1665,6 +1667,7 @@ float3 BloomCorrection(float3 color)
 
 float4 DefocusFilter(sampler2D tex, float2 texcoord, float2 defocus)
 {
+    defocus = clamp(defocus, 1.0, 1.5);
     float2 texel = pixelSize * defocus;
 
     float4 sampleA = texture(tex, texcoord + float2(0.5, 0.5) * texel);
@@ -1687,7 +1690,7 @@ float4 BloomPass(float4 color, float2 texcoord)
     float width = BloomWidth;
 
     float2 defocus = float2(BloomDefocus, BloomDefocus);
-    float4 bloom = DefocusFilter(OGL2Texture, texcoord, clamp(defocus, 1.0, 1.5));
+    float4 bloom = DefocusFilter(OGL2Texture, texcoord, defocus);
 
     float2 dx = float2(pixelSize.x * width, 0.0);
     float2 dy = float2(0.0, pixelSize.y * width);
@@ -1747,11 +1750,11 @@ float4 BloomPass(float4 color, float2 texcoord)
 #if SCENE_TONEMAPPING == 1
 float3 ScaleLuminance(float3 x)
 {
-    float W = 1.02;
-    float L = 0.06;
-    float C = 1.02;
+    float W = 1.02; // WhitePoint Scale
+    float L = 0.16; // Luminance Scale
+    float C = 1.02; // Compression Scale
 
-    float N = clamp(0.76 + ToneAmount, 1.0, 2.0);
+    float N = clamp(0.82 + ToneAmount, 1.0, 2.0);
     float K = (N - L * C) / C;
 
     float3 tone = L * C + (1.0 - L * C) * (1.0 + K * (x - L) /
@@ -1770,7 +1773,7 @@ float3 TmMask(float3 color)
     float3 tone = color;
 
     float highTone = 6.2; float greyTone = 0.4;
-    float midTone = 1.620; float lowTone = 0.06;
+    float midTone = 1.62; float lowTone = 0.06;
 
     tone.r = (tone.r * (highTone * tone.r + greyTone))/(
     tone.r * (highTone * tone.r + midTone) + lowTone);
@@ -1820,12 +1823,14 @@ float3 TmCurve(float3 color)
 
 float4 TonemapPass(float4 color, float2 texcoord)
 {
+    float L = Luminance;
+    
     float3 tonemap = color.rgb;
+    float3 luma = float3(L, L, L);
     
     float blackLevel = length(tonemap);
     tonemap = ScaleLuminance(tonemap);
-
-    float3 luma = float3(Luminance, Luminance, Luminance);
+    
     float luminanceAverage = AvgLuminance(luma);
 
     if (TonemapMask == 1) { tonemap = TmMask(tonemap); }
@@ -2947,7 +2952,6 @@ vec4 PhongPass(vec4 color, vec2 texcoord)
 
     return color;
 }
-
 #endif
 
 /*------------------------------------------------------------------------------
